@@ -8,6 +8,7 @@ import (
 	"github.com/transpara/backend/database"
 	"github.com/transpara/backend/handler"
 	"github.com/transpara/backend/helper"
+	"github.com/transpara/backend/infrastructure/email"
 	"github.com/transpara/backend/repository"
 	"github.com/transpara/backend/router"
 	"github.com/transpara/backend/usecase"
@@ -22,24 +23,18 @@ func main() {
 	defer db.Close()
 
 	// ── 3. JWT Helper ─────────────────────────────────────────────
-	// Dibuat di sini agar bisa dipakai oleh use case (generate token)
-	// dan middleware (verify token)
 	jwtHelper := helper.NewJWTHelper(cfg.JWTSecret, cfg.JWTIssuer, cfg.JWTExpiredHour)
 
-	// ── 4. Dependency Injection ───────────────────────────────────
-	// Rakit dari bawah ke atas: Repository → Use Case → Handler
+	// ── 4. Email Service ──────────────────────────────────────────
+	emailService := email.NewEmailService(cfg)
 
-	// Repository
-	userRepo := repository.NewUserRepository(db)
-	otpRepo  := repository.NewOTPRepository(db)
-
-	// Use Case (terima jwtHelper untuk generate token saat login)
-	authUseCase := usecase.NewAuthUseCase(userRepo, otpRepo, jwtHelper)
-
-	// Handler
+	// ── 5. Dependency Injection ───────────────────────────────────
+	userRepo    := repository.NewUserRepository(db)
+	otpRepo     := repository.NewOTPRepository(db)
+	authUseCase := usecase.NewAuthUseCase(userRepo, otpRepo, jwtHelper, emailService)
 	authHandler := handler.NewAuthHandler(authUseCase)
 
-	// ── 5. Setup Aplikasi Fiber ───────────────────────────────────
+	// ── 6. Setup Aplikasi Fiber ───────────────────────────────────
 	app := fiber.New(fiber.Config{
 		AppName: cfg.AppName,
 		ErrorHandler: func(c *fiber.Ctx, err error) error {
@@ -56,10 +51,10 @@ func main() {
 		},
 	})
 
-	// ── 6. Routes (jwtHelper diteruskan untuk middleware) ─────────
+	// ── 7. Routes ─────────────────────────────────────────────────
 	router.SetupRoutes(app, authHandler, jwtHelper)
 
-	// ── 7. 404 Handler ────────────────────────────────────────────
+	// ── 8. 404 Handler ────────────────────────────────────────────
 	app.Use(func(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
@@ -67,9 +62,10 @@ func main() {
 		})
 	})
 
-	// ── 8. Jalankan Server ────────────────────────────────────────
+	// ── 9. Jalankan Server ────────────────────────────────────────
 	log.Printf("=========================================")
 	log.Printf("  %s berjalan di port %s", cfg.AppName, cfg.AppPort)
+	log.Printf("  SMTP: %s", cfg.SMTPUsername)
 	log.Printf("=========================================")
 	log.Printf("  POST /api/v1/auth/register")
 	log.Printf("  POST /api/v1/auth/verify-otp")

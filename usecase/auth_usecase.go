@@ -11,6 +11,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/transpara/backend/domain"
 	"github.com/transpara/backend/helper"
+	"github.com/transpara/backend/infrastructure/email"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -22,25 +23,25 @@ type AuthUseCase interface {
 	Login(req *domain.LoginRequest) (*domain.LoginResponse, error)
 }
 
-// RegisterResult adalah hasil dari Register — berisi data user dan OTP simulasi.
+// RegisterResult adalah hasil dari Register.
+// OTPCode dikosongkan setelah email dikirim — tidak dikirim ke client.
 type RegisterResult struct {
 	User    *domain.UserResponse `json:"user"`
-	OTPCode string               `json:"otp_code"`
 	Message string               `json:"message"`
 }
 
 // ResendResult adalah hasil dari ResendOTP.
 type ResendResult struct {
-	OTPCode string `json:"otp_code"`
 	Message string `json:"message"`
 }
 
 // authUseCase adalah implementasi konkret dari AuthUseCase.
 type authUseCase struct {
-	userRepo  domain.UserRepository
-	otpRepo   domain.OTPRepository
-	jwtHelper *helper.JWTHelper
-	validate  *validator.Validate
+	userRepo     domain.UserRepository
+	otpRepo      domain.OTPRepository
+	jwtHelper    *helper.JWTHelper
+	emailService *email.EmailService
+	validate     *validator.Validate
 }
 
 // NewAuthUseCase membuat instance authUseCase baru (dependency injection).
@@ -48,17 +49,19 @@ func NewAuthUseCase(
 	userRepo domain.UserRepository,
 	otpRepo domain.OTPRepository,
 	jwtHelper *helper.JWTHelper,
+	emailService *email.EmailService,
 ) AuthUseCase {
 	return &authUseCase{
-		userRepo:  userRepo,
-		otpRepo:   otpRepo,
-		jwtHelper: jwtHelper,
-		validate:  validator.New(),
+		userRepo:     userRepo,
+		otpRepo:      otpRepo,
+		jwtHelper:    jwtHelper,
+		emailService: emailService,
+		validate:     validator.New(),
 	}
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Register — mendaftarkan user baru dan membuat OTP verifikasi
+// Register — daftarkan user baru, buat OTP, kirim ke email
 // ─────────────────────────────────────────────────────────────────────────────
 func (uc *authUseCase) Register(req *domain.RegisterRequest) (*RegisterResult, error) {
 	// 1. Validasi input
@@ -79,13 +82,13 @@ func (uc *authUseCase) Register(req *domain.RegisterRequest) (*RegisterResult, e
 		return nil, errors.New("email sudah terdaftar, gunakan email lain")
 	}
 
-	// 3. Hash password dengan bcrypt
+	// 3. Hash password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, errors.New("gagal memproses password, coba lagi")
 	}
 
-	// 4. Simpan user baru (is_verified = 0 secara default di database)
+	// 4. Simpan user baru (is_verified = 0 secara default)
 	newUser := &domain.User{
 		Name:         req.Name,
 		Email:        req.Email,
@@ -96,7 +99,7 @@ func (uc *authUseCase) Register(req *domain.RegisterRequest) (*RegisterResult, e
 		return nil, err
 	}
 
-	// 5. Generate OTP 6 digit kriptografis aman
+	// 5. Generate OTP 6 digit
 	otpCode, err := generateOTP()
 	if err != nil {
 		return nil, errors.New("gagal membuat OTP, coba lagi")
@@ -107,18 +110,22 @@ func (uc *authUseCase) Register(req *domain.RegisterRequest) (*RegisterResult, e
 		return nil, err
 	}
 
+	// 7. Kirim OTP ke email user — OTP TIDAK dikembalikan ke response API
+	if err := uc.emailService.SendOTP(savedUser.Email, savedUser.Name, otpCode); err != nil {
+		// Jika gagal kirim email, hapus user yang baru dibuat agar bisa register ulang
+		return nil, fmt.Errorf("gagal mengirim email OTP ke %s, coba lagi", savedUser.Email)
+	}
+
 	return &RegisterResult{
 		User:    savedUser.ToResponse(),
-		OTPCode: otpCode,
-		Message: "[SIMULASI] OTP berhasil dibuat. Gunakan otp_code ini untuk verifikasi.",
+		Message: fmt.Sprintf("Registrasi berhasil. Kode OTP telah dikirim ke %s", savedUser.Email),
 	}, nil
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// VerifyOTP — memverifikasi OTP yang dimasukkan user
+// VerifyOTP — verifikasi OTP yang dimasukkan user
 // ─────────────────────────────────────────────────────────────────────────────
 func (uc *authUseCase) VerifyOTP(req *domain.VerifyOTPRequest) (*domain.UserResponse, error) {
-	// 1. Validasi input
 	if err := uc.validate.Struct(req); err != nil {
 		var ve validator.ValidationErrors
 		if errors.As(err, &ve) {
@@ -129,24 +136,20 @@ func (uc *authUseCase) VerifyOTP(req *domain.VerifyOTPRequest) (*domain.UserResp
 
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 
-	// 2. Cari user
 	user, err := uc.userRepo.FindByEmail(req.Email)
 	if err != nil {
 		return nil, errors.New("email tidak terdaftar")
 	}
 
-	// 3. Cek belum terverifikasi
 	if user.IsVerified {
 		return nil, errors.New("akun sudah terverifikasi, silakan login")
 	}
 
-	// 4. Ambil OTP aktif
 	otpToken, err := uc.otpRepo.FindActiveByUserID(user.ID)
 	if err != nil {
 		return nil, errors.New("OTP tidak ditemukan atau sudah kadaluarsa, minta OTP baru")
 	}
 
-	// 5. Cek batas percobaan
 	if otpToken.AttemptCount >= domain.OTPMaxAttempt {
 		return nil, fmt.Errorf(
 			"terlalu banyak percobaan salah (%d/%d), minta OTP baru",
@@ -154,14 +157,12 @@ func (uc *authUseCase) VerifyOTP(req *domain.VerifyOTPRequest) (*domain.UserResp
 		)
 	}
 
-	// 6. Bandingkan OTP yang dikirim dengan hash di database
 	if err := bcrypt.CompareHashAndPassword([]byte(otpToken.OTPHash), []byte(req.OTP)); err != nil {
 		_ = uc.otpRepo.IncrementAttempt(otpToken.ID)
 		remaining := domain.OTPMaxAttempt - (otpToken.AttemptCount + 1)
 		return nil, fmt.Errorf("OTP salah, sisa percobaan: %d", remaining)
 	}
 
-	// 7. OTP benar — tandai used dan update status user menjadi verified
 	if err := uc.otpRepo.MarkUsed(otpToken.ID); err != nil {
 		return nil, errors.New("gagal memproses verifikasi, coba lagi")
 	}
@@ -178,7 +179,7 @@ func (uc *authUseCase) VerifyOTP(req *domain.VerifyOTPRequest) (*domain.UserResp
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ResendOTP — kirim ulang OTP baru
+// ResendOTP — kirim ulang OTP baru ke email user
 // ─────────────────────────────────────────────────────────────────────────────
 func (uc *authUseCase) ResendOTP(req *domain.ResendOTPRequest) (*ResendResult, error) {
 	if err := uc.validate.Struct(req); err != nil {
@@ -200,7 +201,7 @@ func (uc *authUseCase) ResendOTP(req *domain.ResendOTPRequest) (*ResendResult, e
 		return nil, errors.New("akun sudah terverifikasi, silakan login")
 	}
 
-	// Hapus semua OTP lama milik user ini
+	// Hapus semua OTP lama
 	if err := uc.otpRepo.DeleteByUserID(user.ID); err != nil {
 		return nil, errors.New("gagal menghapus OTP lama, coba lagi")
 	}
@@ -214,17 +215,20 @@ func (uc *authUseCase) ResendOTP(req *domain.ResendOTPRequest) (*ResendResult, e
 		return nil, err
 	}
 
+	// Kirim OTP ke email — OTP tidak dikembalikan ke response
+	if err := uc.emailService.SendOTP(user.Email, user.Name, otpCode); err != nil {
+		return nil, fmt.Errorf("gagal mengirim email OTP ke %s, coba lagi", user.Email)
+	}
+
 	return &ResendResult{
-		OTPCode: otpCode,
-		Message: "[SIMULASI] OTP baru berhasil dibuat. Gunakan otp_code ini untuk verifikasi.",
+		Message: fmt.Sprintf("OTP baru telah dikirim ke %s", user.Email),
 	}, nil
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Login — autentikasi user dan kembalikan JWT token asli
+// Login — autentikasi user dan kembalikan JWT token
 // ─────────────────────────────────────────────────────────────────────────────
 func (uc *authUseCase) Login(req *domain.LoginRequest) (*domain.LoginResponse, error) {
-	// 1. Validasi input
 	if err := uc.validate.Struct(req); err != nil {
 		var ve validator.ValidationErrors
 		if errors.As(err, &ve) {
@@ -235,24 +239,19 @@ func (uc *authUseCase) Login(req *domain.LoginRequest) (*domain.LoginResponse, e
 
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
 
-	// 2. Cari user berdasarkan email
 	user, err := uc.userRepo.FindByEmail(req.Email)
 	if err != nil {
-		// Pesan generik — tidak bocorkan apakah email terdaftar atau tidak
 		return nil, errors.New("email atau password salah")
 	}
 
-	// 3. Cek akun sudah diverifikasi
 	if !user.IsVerified {
-		return nil, errors.New("akun belum diverifikasi, periksa OTP Anda")
+		return nil, errors.New("akun belum diverifikasi, periksa email Anda untuk kode OTP")
 	}
 
-	// 4. Bandingkan password dengan hash di database
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		return nil, errors.New("email atau password salah")
 	}
 
-	// 5. Generate JWT access token
 	token, err := uc.jwtHelper.GenerateToken(user.ID, user.Name, user.Email)
 	if err != nil {
 		return nil, errors.New("gagal membuat token, coba lagi")
@@ -269,7 +268,6 @@ func (uc *authUseCase) Login(req *domain.LoginRequest) (*domain.LoginResponse, e
 // Helper functions
 // ─────────────────────────────────────────────────────────────────────────────
 
-// generateOTP membuat kode OTP 6 digit menggunakan crypto/rand (kriptografis aman).
 func generateOTP() (string, error) {
 	const digits = "0123456789"
 	otp := make([]byte, 6)
@@ -283,7 +281,6 @@ func generateOTP() (string, error) {
 	return string(otp), nil
 }
 
-// saveOTP meng-hash OTP dan menyimpannya ke database.
 func (uc *authUseCase) saveOTP(userID uint64, otpCode string) error {
 	otpHash, err := bcrypt.GenerateFromPassword([]byte(otpCode), bcrypt.DefaultCost)
 	if err != nil {
@@ -300,7 +297,6 @@ func (uc *authUseCase) saveOTP(userID uint64, otpCode string) error {
 	return err
 }
 
-// buildValidationMessage mengonversi error validasi ke pesan Bahasa Indonesia.
 func buildValidationMessage(fe validator.FieldError) string {
 	field := strings.ToLower(fe.Field())
 	switch fe.Tag() {
