@@ -1,0 +1,19 @@
+# File environment — JANGAN pernah di-commit
+.env
+
+# Binary hasil build
+transpara
+transpara.exe
+*.exe
+
+# Folder vendor (opsional, uncomment jika pakai vendor mode)
+# vendor/
+
+# File IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Log
+*.log
