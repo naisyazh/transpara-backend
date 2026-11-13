@@ -60,7 +60,8 @@ func respondDomainError(c *fiber.Ctx, err error) error {
 	case errors.Is(err, domain.ErrOutsideBudgetPeriod),
 		errors.Is(err, domain.ErrAmountExceedsRemaining),
 		errors.Is(err, domain.ErrBudgetPeriodInvalid),
-		errors.Is(err, domain.ErrBudgetBelowUsed):
+		errors.Is(err, domain.ErrBudgetBelowUsed),
+		errors.Is(err, domain.ErrRequestNotApproved):
 		return respondFail(c, fiber.StatusUnprocessableEntity, err.Error())
 
 	case errors.Unwrap(err) != nil:
