@@ -91,5 +91,6 @@ var (
 	ErrOutsideBudgetPeriod    = errors.New("pengajuan di luar periode pos anggaran")
 	ErrAmountExceedsRemaining = errors.New("nominal melebihi sisa dana pos anggaran")
 	ErrRequestNotPending      = errors.New("pengajuan sudah diputuskan, voting sudah ditutup")
+	ErrRequestNotApproved     = errors.New("pengajuan belum disetujui, dana belum bisa dicairkan")
 	ErrAlreadyVoted           = errors.New("Anda sudah memberikan suara untuk pengajuan ini")
 )
