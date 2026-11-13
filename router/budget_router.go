@@ -1,6 +1,8 @@
 package router
 
 import (
+	"database/sql"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/transpara/backend/handler"
 	"github.com/transpara/backend/helper"
@@ -17,11 +19,12 @@ func SetupBudgetRoutes(
 	budgetHandler *handler.BudgetHandler,
 	expenseHandler *handler.ExpenseHandler,
 	jwtHelper *helper.JWTHelper,
+	db *sql.DB,
 ) {
 	api := app.Group("/api/v1")
 
 	requireAuth := middleware.RequireAuth(jwtHelper)
-	requireTreasurer := middleware.RequireRole("bendahara")
+	requireTreasurer := middleware.RequireRole(db, "bendahara")
 
 	// ── Pos Anggaran ──────────────────────────────────────────────
 	budgets := api.Group("/budgets")
