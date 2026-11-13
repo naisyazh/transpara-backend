@@ -34,6 +34,14 @@ func main() {
 	authUseCase := usecase.NewAuthUseCase(userRepo, otpRepo, jwtHelper, emailService)
 	authHandler := handler.NewAuthHandler(authUseCase)
 
+	// Modul Anggaran dan Voting
+	budgetRepo     := repository.NewBudgetRepository(db)
+	expenseRepo    := repository.NewExpenseRequestRepository(db)
+	budgetUseCase  := usecase.NewBudgetUseCase(budgetRepo)
+	expenseUseCase := usecase.NewExpenseUseCase(budgetRepo, expenseRepo)
+	budgetHandler  := handler.NewBudgetHandler(budgetUseCase)
+	expenseHandler := handler.NewExpenseHandler(expenseUseCase)
+
 	// ── 6. Setup Aplikasi Fiber ───────────────────────────────────
 	app := fiber.New(fiber.Config{
 		AppName: cfg.AppName,
@@ -53,6 +61,8 @@ func main() {
 
 	// ── 7. Routes ─────────────────────────────────────────────────
 	router.SetupRoutes(app, authHandler, jwtHelper)
+	router.SetupBudgetRoutes(app, budgetHandler, expenseHandler, jwtHelper, db)
+	
 
 	// ── 8. 404 Handler ────────────────────────────────────────────
 	app.Use(func(c *fiber.Ctx) error {
@@ -72,6 +82,14 @@ func main() {
 	log.Printf("  POST /api/v1/auth/resend-otp")
 	log.Printf("  POST /api/v1/auth/login")
 	log.Printf("  GET  /api/v1/auth/me        [JWT required]")
+	log.Printf("  GET  /api/v1/budgets                    [JWT]")
+	log.Printf("  GET  /api/v1/budgets/:id                [JWT]")
+	log.Printf("  POST /api/v1/budgets                    [JWT, bendahara]")
+	log.Printf("  PUT  /api/v1/budgets/:id                [JWT, bendahara]")
+	log.Printf("  GET  /api/v1/expense-requests           [JWT]")
+	log.Printf("  GET  /api/v1/expense-requests/:id       [JWT]")
+	log.Printf("  POST /api/v1/expense-requests           [JWT]")
+	log.Printf("  POST /api/v1/expense-requests/:id/vote  [JWT]")
 	log.Printf("=========================================")
 
 	if err := app.Listen(":" + cfg.AppPort); err != nil {
