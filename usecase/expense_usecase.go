@@ -12,11 +12,14 @@ import (
 
 // ExpenseUseCase adalah kontrak use case untuk pengajuan dana dan voting.
 //
-// GetByID juga dipakai Developer 2 (modul transaksi) untuk memblokir
-// pencairan dana: tolak kalau Status != domain.ExpenseStatusApproved.
+// EnsureApproved dipakai Developer 2 (modul transaksi) sebelum mencairkan
+// dana: hanya pengajuan berstatus approved yang lolos.
 type ExpenseUseCase interface {
 	Create(userID uint64, req *domain.CreateExpenseRequest) (*domain.ExpenseRequest, error)
 	GetByID(id uint64) (*domain.ExpenseRequest, error)
+	// EnsureApproved mengembalikan pengajuan jika statusnya approved.
+	// Status pending atau rejected mengembalikan domain.ErrRequestNotApproved.
+	EnsureApproved(id uint64) (*domain.ExpenseRequest, error)
 	List(status string) ([]domain.ExpenseRequest, error)
 	Vote(userID, requestID uint64, req *domain.VoteRequest) (*domain.ExpenseRequest, error)
 }
@@ -89,6 +92,21 @@ func (uc *expenseUseCase) Create(userID uint64, req *domain.CreateExpenseRequest
 // GetByID — detail satu pengajuan (termasuk status dan hitungan suara).
 func (uc *expenseUseCase) GetByID(id uint64) (*domain.ExpenseRequest, error) {
 	return uc.expenseRepo.FindByID(id)
+}
+
+// EnsureApproved — dipakai modul transaksi sebelum bendahara mencairkan dana.
+// Mengembalikan pengajuan jika statusnya approved. Jika pending atau rejected
+// dikembalikan domain.ErrRequestNotApproved, jika id tidak ada dikembalikan
+// domain.ErrExpenseNotFound.
+func (uc *expenseUseCase) EnsureApproved(id uint64) (*domain.ExpenseRequest, error) {
+	req, err := uc.expenseRepo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if req.Status != domain.ExpenseStatusApproved {
+		return nil, domain.ErrRequestNotApproved
+	}
+	return req, nil
 }
 
 // List — daftar pengajuan. status boleh kosong, atau pending/approved/rejected.
