@@ -100,13 +100,21 @@ Respons yang diharapkan:
 ```
 transpara/
 ├── config/           # Membaca konfigurasi dari file .env
-├── database/         # Koneksi ke database MySQL
-├── domain/           # Struct entitas dan interface (kontrak) — isi oleh tiap modul
-├── repository/       # Implementasi akses database — isi oleh tiap modul
-├── usecase/          # Business logic / Use Case — isi oleh tiap modul
-├── middleware/        # Middleware HTTP (JWT auth, dll)
+├── database/
+│   ├── migrations/   # File SQL migrasi (001-007), jalankan berurutan
+│   └── mysql.go      # Koneksi ke database MySQL
+├── docs/
+│   └── postman/      # Koleksi Postman untuk pengujian manual
+├── domain/           # Struct entitas, DTO, interface repository, dan error khusus
+├── handler/          # Handler HTTP: terima request, panggil usecase, kirim response
+├── helper/           # Fungsi bantu (JWT)
+├── infrastructure/
+│   └── email/        # Pengiriman email OTP lewat SMTP
+├── middleware/       # RequireAuth (JWT) dan RequireRole (pembatasan role)
+├── repository/       # Implementasi akses database MySQL
 ├── router/           # Pendaftaran semua route API
-├── main.go           # Entry point — merakit semua komponen
+├── usecase/          # Business logic / Use Case
+├── main.go           # Entry point, merakit semua komponen
 ├── .env              # Konfigurasi lokal (JANGAN di-commit)
 ├── .env.example      # Contoh konfigurasi (aman di-commit)
 ├── .gitignore        # Daftar file yang dikecualikan dari Git
@@ -125,6 +133,114 @@ transpara/
 | GET | `/api/v1/auth/me` | Data user yang sedang login | JWT |
 
 > Endpoint auth akan tersedia setelah Modul Autentikasi selesai.
+
+---
+
+## Modul Anggaran dan Voting
+
+Bendahara membuat pos anggaran, anggota mengajukan penggunaan dana, lalu seluruh anggota memberi suara. Pengajuan yang disetujui mayoritas baru boleh dicairkan oleh modul transaksi.
+
+### Persiapan Database
+
+Jalankan migrasi berurutan di MySQL client (pakai `SOURCE` supaya jalan juga di Windows PowerShell):
+
+```sql
+USE transpara;
+SOURCE database/migrations/004_create_budgets_table.sql;
+SOURCE database/migrations/005_create_expense_requests_table.sql;
+SOURCE database/migrations/006_create_expense_votes_table.sql;
+SOURCE database/migrations/007_add_role_to_users.sql;
+```
+
+Setiap user baru otomatis berrole `anggota`. Role `bendahara` hanya bisa disetel langsung lewat database:
+
+```sql
+UPDATE users SET role = 'bendahara' WHERE email = 'email_bendahara@contoh.com';
+```
+
+Perubahan role langsung berlaku tanpa login ulang, karena role dibaca dari database pada setiap request.
+
+### Endpoint
+
+Semua endpoint wajib memakai header `Authorization: Bearer <token>`.
+
+| Method | Endpoint | Akses | Deskripsi |
+|--------|----------|-------|-----------|
+| GET | `/api/v1/budgets` | Login | Daftar pos anggaran beserta sisa dana |
+| GET | `/api/v1/budgets/:id` | Login | Detail satu pos anggaran |
+| POST | `/api/v1/budgets` | Bendahara | Buat pos anggaran |
+| PUT | `/api/v1/budgets/:id` | Bendahara | Ubah pos anggaran |
+| GET | `/api/v1/expense-requests` | Login | Daftar pengajuan, filter `?status=pending\|approved\|rejected` |
+| GET | `/api/v1/expense-requests/:id` | Login | Detail pengajuan beserta hitungan suara |
+| POST | `/api/v1/expense-requests` | Login | Buat pengajuan dana |
+| POST | `/api/v1/expense-requests/:id/vote` | Login | Beri suara setuju atau tolak |
+
+### Contoh Request
+
+Buat pos anggaran (`POST /api/v1/budgets`, tanggal berformat `YYYY-MM-DD`):
+
+```json
+{
+  "name": "Kegiatan Bakti Sosial",
+  "description": "Dana untuk kegiatan bulan November",
+  "max_amount": 1000000,
+  "start_date": "2026-11-01",
+  "end_date": "2026-11-30"
+}
+```
+
+Buat pengajuan dana (`POST /api/v1/expense-requests`):
+
+```json
+{
+  "budget_id": 1,
+  "title": "Beli konsumsi",
+  "amount": 500000,
+  "reason": "Konsumsi untuk peserta kegiatan"
+}
+```
+
+Beri suara (`POST /api/v1/expense-requests/:id/vote`, nilai `yes` atau `no`):
+
+```json
+{
+  "vote": "yes"
+}
+```
+
+Format response sama dengan modul lain: `success`, `message`, dan `data` (hanya saat sukses).
+
+### Aturan Bisnis
+
+- **Pembatasan role**: hanya bendahara yang boleh membuat dan mengubah pos anggaran. Anggota biasa menerima `403 Forbidden`.
+- **Validasi pengajuan**: pos anggaran harus ada, tanggal hari ini harus berada di dalam periode pos (tanggal akhir ikut dihitung), dan nominal tidak boleh melebihi sisa dana. Status awal pengajuan adalah `pending`.
+- **Sisa dana** = `max_amount` dikurangi total pengajuan berstatus `pending` dan `approved`. Pengajuan `rejected` tidak dihitung.
+- **Total anggota voting** = semua user dengan `is_verified = 1`, bendahara ikut dihitung.
+- **Disetujui** (`approved`): suara setuju melewati 50% total anggota. Contoh 4 anggota, 3 suara setuju.
+- **Ditolak** (`rejected`): suara tolak sudah mencapai 50% total anggota, sehingga suara setuju tidak mungkin melewati 50% lagi. Contoh 4 anggota, 2 suara tolak.
+- Saat status berubah menjadi `approved` atau `rejected`, kolom `decided_at` otomatis terisi.
+- Satu user hanya boleh memberi satu suara per pengajuan, dan vote hanya bisa dilakukan saat status masih `pending`.
+- Proses vote berjalan dalam satu DB transaction dengan penguncian baris, sehingga hitungan tetap akurat walau dua orang vote bersamaan.
+- Pos anggaran tidak bisa diubah ke `max_amount` yang lebih kecil dari dana yang sudah diajukan.
+
+### Kode Response
+
+| Kode | Arti |
+|------|------|
+| 400 | Input tidak valid (format JSON, validasi field, format tanggal, nilai `vote`) |
+| 401 | Token tidak ada atau tidak valid |
+| 403 | Role tidak punya akses (anggota mengakses fitur bendahara) |
+| 404 | Pos anggaran atau pengajuan tidak ditemukan |
+| 409 | Sudah vote, atau voting sudah ditutup karena status bukan `pending` |
+| 422 | Aturan bisnis tidak terpenuhi (di luar periode, melebihi sisa dana, dan sejenisnya) |
+
+### Penghubung ke Modul Transaksi
+
+Pencairan dana hanya boleh dilakukan dari pengajuan berstatus `approved`. Modul transaksi memanggil `ExpenseUseCase.EnsureApproved(id)` sebelum mencairkan dana. Fungsi ini mengembalikan `domain.ErrRequestNotApproved` jika status masih `pending` atau `rejected` (dipetakan ke `422`), dan `domain.ErrExpenseNotFound` jika ID tidak ada.
+
+### Pengujian Manual
+
+Koleksi Postman tersedia di `docs/postman/transpara-anggaran-voting.postman_collection.json`. Siapkan tepat 4 akun terverifikasi (1 bendahara dan 3 anggota) sebelum menjalankannya.
 
 ---
 
