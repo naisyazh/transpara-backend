@@ -6,7 +6,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/transpara/backend/config"
 	"github.com/transpara/backend/database"
-	"github.com/transpara/backend/handler"
+	"github.com/transpara/backend/delivery"
 	"github.com/transpara/backend/helper"
 	"github.com/transpara/backend/infrastructure/email"
 	"github.com/transpara/backend/repository"
