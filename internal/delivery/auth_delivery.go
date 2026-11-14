@@ -1,23 +1,23 @@
-package handler
+package delivery
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/transpara/backend/domain"
-	"github.com/transpara/backend/usecase"
+	"github.com/transpara/backend/internal/domain"
+	"github.com/transpara/backend/internal/usecase"
 )
 
-// AuthHandler menangani semua request HTTP untuk modul autentikasi.
+// AuthDelivery menerima semua request HTTP untuk modul autentikasi.
 // Tidak ada business logic di sini — semua diteruskan ke use case.
-type AuthHandler struct {
+type AuthDelivery struct {
 	authUseCase usecase.AuthUseCase
 }
 
-func NewAuthHandler(authUseCase usecase.AuthUseCase) *AuthHandler {
-	return &AuthHandler{authUseCase: authUseCase}
+func NewAuthDelivery(authUseCase usecase.AuthUseCase) *AuthDelivery {
+	return &AuthDelivery{authUseCase: authUseCase}
 }
 
 // Register — POST /api/v1/auth/register
-func (h *AuthHandler) Register(c *fiber.Ctx) error {
+func (d *AuthDelivery) Register(c *fiber.Ctx) error {
 	var req domain.RegisterRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -26,7 +26,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	result, err := h.authUseCase.Register(&req)
+	result, err := d.authUseCase.Register(&req)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
@@ -42,7 +42,7 @@ func (h *AuthHandler) Register(c *fiber.Ctx) error {
 }
 
 // VerifyOTP — POST /api/v1/auth/verify-otp
-func (h *AuthHandler) VerifyOTP(c *fiber.Ctx) error {
+func (d *AuthDelivery) VerifyOTP(c *fiber.Ctx) error {
 	var req domain.VerifyOTPRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -51,7 +51,7 @@ func (h *AuthHandler) VerifyOTP(c *fiber.Ctx) error {
 		})
 	}
 
-	userResponse, err := h.authUseCase.VerifyOTP(&req)
+	userResponse, err := d.authUseCase.VerifyOTP(&req)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
@@ -67,7 +67,7 @@ func (h *AuthHandler) VerifyOTP(c *fiber.Ctx) error {
 }
 
 // ResendOTP — POST /api/v1/auth/resend-otp
-func (h *AuthHandler) ResendOTP(c *fiber.Ctx) error {
+func (d *AuthDelivery) ResendOTP(c *fiber.Ctx) error {
 	var req domain.ResendOTPRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -76,7 +76,7 @@ func (h *AuthHandler) ResendOTP(c *fiber.Ctx) error {
 		})
 	}
 
-	result, err := h.authUseCase.ResendOTP(&req)
+	result, err := d.authUseCase.ResendOTP(&req)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
@@ -91,7 +91,7 @@ func (h *AuthHandler) ResendOTP(c *fiber.Ctx) error {
 }
 
 // Login — POST /api/v1/auth/login
-func (h *AuthHandler) Login(c *fiber.Ctx) error {
+func (d *AuthDelivery) Login(c *fiber.Ctx) error {
 	var req domain.LoginRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -100,7 +100,7 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	result, err := h.authUseCase.Login(&req)
+	result, err := d.authUseCase.Login(&req)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,

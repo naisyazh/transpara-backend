@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/transpara/backend/domain"
+	"github.com/transpara/backend/internal/domain"
 )
 
 // ExpenseUseCase adalah kontrak use case untuk pengajuan dana dan voting.

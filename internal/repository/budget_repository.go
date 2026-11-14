@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/transpara/backend/domain"
+	"github.com/transpara/backend/internal/domain"
 )
 
 const sqlDateLayout = "2006-01-02"

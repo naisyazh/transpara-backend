@@ -7,7 +7,7 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql" // driver MySQL wajib di-import agar terdaftar
-	"github.com/transpara/backend/config"
+	"github.com/transpara/backend/pkg/config"
 )
 
 // NewMySQLConnection membuat dan mengembalikan koneksi database MySQL.

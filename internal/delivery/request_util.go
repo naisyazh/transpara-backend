@@ -1,4 +1,4 @@
-package handler
+package delivery
 
 import (
 	"errors"
@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/transpara/backend/domain"
+	"github.com/transpara/backend/internal/domain"
 )
 
 // getAuthUserID mengambil ID user yang sedang login dari c.Locals("userID").
@@ -22,7 +22,7 @@ func parsePathID(c *fiber.Ctx) (uint64, bool) {
 	return id, err == nil && id > 0
 }
 
-// respondOK mengirim response sukses dengan format yang sama seperti AuthHandler.
+// respondOK mengirim response sukses dengan format yang sama seperti AuthDelivery.
 func respondOK(c *fiber.Ctx, status int, message string, data any) error {
 	return c.Status(status).JSON(fiber.Map{
 		"success": true,
@@ -31,7 +31,7 @@ func respondOK(c *fiber.Ctx, status int, message string, data any) error {
 	})
 }
 
-// respondFail mengirim response gagal dengan format yang sama seperti AuthHandler.
+// respondFail mengirim response gagal dengan format yang sama seperti AuthDelivery.
 func respondFail(c *fiber.Ctx, status int, message string) error {
 	return c.Status(status).JSON(fiber.Map{
 		"success": false,

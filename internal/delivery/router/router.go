@@ -2,14 +2,14 @@ package router
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/transpara/backend/handler"
-	"github.com/transpara/backend/helper"
-	"github.com/transpara/backend/middleware"
+	"github.com/transpara/backend/internal/delivery"
+	"github.com/transpara/backend/pkg/helper"
+	"github.com/transpara/backend/internal/delivery/middleware"
 )
 
 // SetupRoutes mendaftarkan semua route ke aplikasi Fiber.
 // Pola URL: /api/v1/<modul>/<aksi>
-func SetupRoutes(app *fiber.App, authHandler *handler.AuthHandler, jwtHelper *helper.JWTHelper) {
+func SetupRoutes(app *fiber.App, authHandler *delivery.AuthDelivery, jwtHelper *helper.JWTHelper) {
 	api := app.Group("/api/v1")
 
 	// ── Health Check ──────────────────────────────────────────────

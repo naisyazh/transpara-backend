@@ -1,23 +1,23 @@
-package handler
+package delivery
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/transpara/backend/domain"
-	"github.com/transpara/backend/usecase"
+	"github.com/transpara/backend/internal/domain"
+	"github.com/transpara/backend/internal/usecase"
 )
 
-// BudgetHandler menangani request HTTP untuk pos anggaran.
+// BudgetDelivery menangani request HTTP untuk pos anggaran.
 // Tidak ada business logic di sini, semua diteruskan ke use case.
-type BudgetHandler struct {
+type BudgetDelivery struct {
 	budgetUseCase usecase.BudgetUseCase
 }
 
-func NewBudgetHandler(budgetUseCase usecase.BudgetUseCase) *BudgetHandler {
-	return &BudgetHandler{budgetUseCase: budgetUseCase}
+func NewBudgetDelivery(budgetUseCase usecase.BudgetUseCase) *BudgetDelivery {
+	return &BudgetDelivery{budgetUseCase: budgetUseCase}
 }
 
 // Create — POST /api/v1/budgets (khusus bendahara, dijaga di router)
-func (h *BudgetHandler) Create(c *fiber.Ctx) error {
+func (h *BudgetDelivery) Create(c *fiber.Ctx) error {
 	userID, ok := getAuthUserID(c)
 	if !ok {
 		return respondFail(c, fiber.StatusUnauthorized, "Sesi tidak valid, silakan login kembali")
@@ -37,7 +37,7 @@ func (h *BudgetHandler) Create(c *fiber.Ctx) error {
 }
 
 // Update — PUT /api/v1/budgets/:id (khusus bendahara, dijaga di router)
-func (h *BudgetHandler) Update(c *fiber.Ctx) error {
+func (h *BudgetDelivery) Update(c *fiber.Ctx) error {
 	id, ok := parsePathID(c)
 	if !ok {
 		return respondFail(c, fiber.StatusBadRequest, "ID pos anggaran tidak valid")
@@ -57,7 +57,7 @@ func (h *BudgetHandler) Update(c *fiber.Ctx) error {
 }
 
 // GetByID — GET /api/v1/budgets/:id
-func (h *BudgetHandler) GetByID(c *fiber.Ctx) error {
+func (h *BudgetDelivery) GetByID(c *fiber.Ctx) error {
 	id, ok := parsePathID(c)
 	if !ok {
 		return respondFail(c, fiber.StatusBadRequest, "ID pos anggaran tidak valid")
@@ -72,7 +72,7 @@ func (h *BudgetHandler) GetByID(c *fiber.Ctx) error {
 }
 
 // List — GET /api/v1/budgets
-func (h *BudgetHandler) List(c *fiber.Ctx) error {
+func (h *BudgetDelivery) List(c *fiber.Ctx) error {
 	result, err := h.budgetUseCase.List()
 	if err != nil {
 		return respondDomainError(c, err)

@@ -1,23 +1,23 @@
-package handler
+package delivery
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/transpara/backend/domain"
-	"github.com/transpara/backend/usecase"
+	"github.com/transpara/backend/internal/domain"
+	"github.com/transpara/backend/internal/usecase"
 )
 
-// ExpenseHandler menangani request HTTP untuk pengajuan dana dan voting.
+// ExpenseDelivery menangani request HTTP untuk pengajuan dana dan voting.
 // Tidak ada business logic di sini, semua diteruskan ke use case.
-type ExpenseHandler struct {
+type ExpenseDelivery struct {
 	expenseUseCase usecase.ExpenseUseCase
 }
 
-func NewExpenseHandler(expenseUseCase usecase.ExpenseUseCase) *ExpenseHandler {
-	return &ExpenseHandler{expenseUseCase: expenseUseCase}
+func NewExpenseDelivery(expenseUseCase usecase.ExpenseUseCase) *ExpenseDelivery {
+	return &ExpenseDelivery{expenseUseCase: expenseUseCase}
 }
 
 // Create — POST /api/v1/expense-requests (anggota dan bendahara)
-func (h *ExpenseHandler) Create(c *fiber.Ctx) error {
+func (h *ExpenseDelivery) Create(c *fiber.Ctx) error {
 	userID, ok := getAuthUserID(c)
 	if !ok {
 		return respondFail(c, fiber.StatusUnauthorized, "Sesi tidak valid, silakan login kembali")
@@ -37,7 +37,7 @@ func (h *ExpenseHandler) Create(c *fiber.Ctx) error {
 }
 
 // List — GET /api/v1/expense-requests?status=pending|approved|rejected
-func (h *ExpenseHandler) List(c *fiber.Ctx) error {
+func (h *ExpenseDelivery) List(c *fiber.Ctx) error {
 	result, err := h.expenseUseCase.List(c.Query("status"))
 	if err != nil {
 		return respondDomainError(c, err)
@@ -47,7 +47,7 @@ func (h *ExpenseHandler) List(c *fiber.Ctx) error {
 }
 
 // GetByID — GET /api/v1/expense-requests/:id
-func (h *ExpenseHandler) GetByID(c *fiber.Ctx) error {
+func (h *ExpenseDelivery) GetByID(c *fiber.Ctx) error {
 	id, ok := parsePathID(c)
 	if !ok {
 		return respondFail(c, fiber.StatusBadRequest, "ID pengajuan tidak valid")
@@ -63,7 +63,7 @@ func (h *ExpenseHandler) GetByID(c *fiber.Ctx) error {
 
 // Vote — POST /api/v1/expense-requests/:id/vote
 // Body: {"vote": "yes"} atau {"vote": "no"}
-func (h *ExpenseHandler) Vote(c *fiber.Ctx) error {
+func (h *ExpenseDelivery) Vote(c *fiber.Ctx) error {
 	userID, ok := getAuthUserID(c)
 	if !ok {
 		return respondFail(c, fiber.StatusUnauthorized, "Sesi tidak valid, silakan login kembali")

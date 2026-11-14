@@ -4,9 +4,9 @@ import (
 	"database/sql"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/transpara/backend/handler"
-	"github.com/transpara/backend/helper"
-	"github.com/transpara/backend/middleware"
+	"github.com/transpara/backend/internal/delivery"
+	"github.com/transpara/backend/internal/delivery/middleware"
+	"github.com/transpara/backend/pkg/helper"
 )
 
 // SetupBudgetRoutes mendaftarkan route modul Anggaran dan Voting.
@@ -16,8 +16,8 @@ import (
 // hanya boleh bendahara (RequireRole), anggota biasa mendapat 403 Forbidden.
 func SetupBudgetRoutes(
 	app *fiber.App,
-	budgetHandler *handler.BudgetHandler,
-	expenseHandler *handler.ExpenseHandler,
+	budgetDelivery *delivery.BudgetDelivery,
+	expenseDelivery *delivery.ExpenseDelivery,
 	jwtHelper *helper.JWTHelper,
 	db *sql.DB,
 ) {
@@ -28,15 +28,15 @@ func SetupBudgetRoutes(
 
 	// ── Pos Anggaran ──────────────────────────────────────────────
 	budgets := api.Group("/budgets")
-	budgets.Get("/", requireAuth, budgetHandler.List)
-	budgets.Get("/:id", requireAuth, budgetHandler.GetByID)
-	budgets.Post("/", requireAuth, requireTreasurer, budgetHandler.Create)
-	budgets.Put("/:id", requireAuth, requireTreasurer, budgetHandler.Update)
+	budgets.Get("/", requireAuth, budgetDelivery.List)
+	budgets.Get("/:id", requireAuth, budgetDelivery.GetByID)
+	budgets.Post("/", requireAuth, requireTreasurer, budgetDelivery.Create)
+	budgets.Put("/:id", requireAuth, requireTreasurer, budgetDelivery.Update)
 
 	// ── Pengajuan Dana dan Voting ─────────────────────────────────
 	expenses := api.Group("/expense-requests")
-	expenses.Get("/", requireAuth, expenseHandler.List)
-	expenses.Get("/:id", requireAuth, expenseHandler.GetByID)
-	expenses.Post("/", requireAuth, expenseHandler.Create)
-	expenses.Post("/:id/vote", requireAuth, expenseHandler.Vote)
+	expenses.Get("/", requireAuth, expenseDelivery.List)
+	expenses.Get("/:id", requireAuth, expenseDelivery.GetByID)
+	expenses.Post("/", requireAuth, expenseDelivery.Create)
+	expenses.Post("/:id/vote", requireAuth, expenseDelivery.Vote)
 }
