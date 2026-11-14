@@ -1,4 +1,4 @@
-package usecase
+package service
 
 import (
 	"errors"
@@ -7,35 +7,35 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/transpara/backend/internal/domain"
+	"github.com/transpara/backend/app/model"
 )
 
 const budgetDateLayout = "2006-01-02"
 
-// BudgetUseCase adalah kontrak use case untuk pos anggaran.
+// BudgetService adalah kontrak use case untuk pos anggaran.
 // Pembatasan "hanya bendahara" dilakukan di router (Tahap 6), bukan di sini.
-type BudgetUseCase interface {
-	Create(userID uint64, req *domain.BudgetRequest) (*domain.BudgetResponse, error)
-	Update(id uint64, req *domain.BudgetRequest) (*domain.BudgetResponse, error)
-	GetByID(id uint64) (*domain.BudgetResponse, error)
-	List() ([]domain.BudgetResponse, error)
+type BudgetService interface {
+	Create(userID uint64, req *model.BudgetRequest) (*model.BudgetResponse, error)
+	Update(id uint64, req *model.BudgetRequest) (*model.BudgetResponse, error)
+	GetByID(id uint64) (*model.BudgetResponse, error)
+	List() ([]model.BudgetResponse, error)
 }
 
-type budgetUseCase struct {
-	budgetRepo domain.BudgetRepository
+type budgetService struct {
+	budgetRepo model.BudgetRepository
 	validate   *validator.Validate
 }
 
-// NewBudgetUseCase membuat instance budgetUseCase baru (dependency injection).
-func NewBudgetUseCase(budgetRepo domain.BudgetRepository) BudgetUseCase {
-	return &budgetUseCase{
+// NewBudgetService membuat instance budgetService baru (dependency injection).
+func NewBudgetService(budgetRepo model.BudgetRepository) BudgetService {
+	return &budgetService{
 		budgetRepo: budgetRepo,
 		validate:   validator.New(),
 	}
 }
 
 // Create — buat pos anggaran baru. userID adalah bendahara pembuatnya.
-func (uc *budgetUseCase) Create(userID uint64, req *domain.BudgetRequest) (*domain.BudgetResponse, error) {
+func (uc *budgetService) Create(userID uint64, req *model.BudgetRequest) (*model.BudgetResponse, error) {
 	budget, err := uc.buildBudget(req)
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func (uc *budgetUseCase) Create(userID uint64, req *domain.BudgetRequest) (*doma
 
 // Update — ubah pos anggaran. Batas dana baru tidak boleh lebih kecil
 // dari dana yang sudah diajukan (pending + approved) di pos ini.
-func (uc *budgetUseCase) Update(id uint64, req *domain.BudgetRequest) (*domain.BudgetResponse, error) {
+func (uc *budgetService) Update(id uint64, req *model.BudgetRequest) (*model.BudgetResponse, error) {
 	existing, err := uc.budgetRepo.FindByID(id)
 	if err != nil {
 		return nil, err
@@ -71,7 +71,7 @@ func (uc *budgetUseCase) Update(id uint64, req *domain.BudgetRequest) (*domain.B
 	}
 	used := roundRupiah(existing.MaxAmount - remaining)
 	if updated.MaxAmount < used {
-		return nil, domain.ErrBudgetBelowUsed
+		return nil, model.ErrBudgetBelowUsed
 	}
 
 	saved, err := uc.budgetRepo.Update(updated)
@@ -82,7 +82,7 @@ func (uc *budgetUseCase) Update(id uint64, req *domain.BudgetRequest) (*domain.B
 }
 
 // GetByID — detail satu pos anggaran beserta sisa dananya.
-func (uc *budgetUseCase) GetByID(id uint64) (*domain.BudgetResponse, error) {
+func (uc *budgetService) GetByID(id uint64) (*model.BudgetResponse, error) {
 	budget, err := uc.budgetRepo.FindByID(id)
 	if err != nil {
 		return nil, err
@@ -97,13 +97,13 @@ func (uc *budgetUseCase) GetByID(id uint64) (*domain.BudgetResponse, error) {
 
 // List — semua pos anggaran beserta sisa dananya.
 // Satu query sisa dana per pos: tidak masalah untuk jumlah pos kelompok yang kecil.
-func (uc *budgetUseCase) List() ([]domain.BudgetResponse, error) {
+func (uc *budgetService) List() ([]model.BudgetResponse, error) {
 	budgets, err := uc.budgetRepo.FindAll()
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]domain.BudgetResponse, 0, len(budgets))
+	result := make([]model.BudgetResponse, 0, len(budgets))
 	for i := range budgets {
 		remaining, err := uc.budgetRepo.GetRemainingAmount(budgets[i].ID)
 		if err != nil {
@@ -115,7 +115,7 @@ func (uc *budgetUseCase) List() ([]domain.BudgetResponse, error) {
 }
 
 // buildBudget memvalidasi input (nominal dan tanggal) lalu menyusun entitas Budget.
-func (uc *budgetUseCase) buildBudget(req *domain.BudgetRequest) (*domain.Budget, error) {
+func (uc *budgetService) buildBudget(req *model.BudgetRequest) (*model.Budget, error) {
 	if err := uc.validate.Struct(req); err != nil {
 		var ve validator.ValidationErrors
 		if errors.As(err, &ve) {
@@ -133,10 +133,10 @@ func (uc *budgetUseCase) buildBudget(req *domain.BudgetRequest) (*domain.Budget,
 		return nil, errors.New("format end_date harus YYYY-MM-DD, contoh: 2026-11-30")
 	}
 	if end.Before(start) {
-		return nil, domain.ErrBudgetPeriodInvalid
+		return nil, model.ErrBudgetPeriodInvalid
 	}
 
-	return &domain.Budget{
+	return &model.Budget{
 		Name:        strings.TrimSpace(req.Name),
 		Description: strings.TrimSpace(req.Description),
 		MaxAmount:   roundRupiah(req.MaxAmount),

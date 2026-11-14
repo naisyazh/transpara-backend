@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/transpara/backend/internal/domain"
+	"github.com/transpara/backend/app/model"
 )
 
 type userRepository struct {
@@ -14,13 +14,13 @@ type userRepository struct {
 }
 
 // NewUserRepository membuat instance userRepository baru.
-// Mengembalikan domain.UserRepository (interface) — dependency injection.
-func NewUserRepository(db *sql.DB) domain.UserRepository {
+// Mengembalikan model.UserRepository (interface) — dependency injection.
+func NewUserRepository(db *sql.DB) model.UserRepository {
 	return &userRepository{db: db}
 }
 
 // Save menyimpan user baru ke tabel users.
-func (r *userRepository) Save(user *domain.User) (*domain.User, error) {
+func (r *userRepository) Save(user *model.User) (*model.User, error) {
 	query := `INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)`
 
 	result, err := r.db.Exec(query, user.Name, user.Email, user.PasswordHash)
@@ -40,14 +40,14 @@ func (r *userRepository) Save(user *domain.User) (*domain.User, error) {
 }
 
 // FindByEmail mencari user berdasarkan alamat email.
-func (r *userRepository) FindByEmail(email string) (*domain.User, error) {
+func (r *userRepository) FindByEmail(email string) (*model.User, error) {
 	query := `
 		SELECT id, name, email, password_hash, is_verified, created_at, updated_at
 		FROM users
 		WHERE email = ?
 		LIMIT 1`
 
-	user := &domain.User{}
+	user := &model.User{}
 	err := r.db.QueryRow(query, email).Scan(
 		&user.ID,
 		&user.Name,
@@ -68,14 +68,14 @@ func (r *userRepository) FindByEmail(email string) (*domain.User, error) {
 }
 
 // FindByID mencari user berdasarkan ID.
-func (r *userRepository) FindByID(id uint64) (*domain.User, error) {
+func (r *userRepository) FindByID(id uint64) (*model.User, error) {
 	query := `
 		SELECT id, name, email, password_hash, is_verified, created_at, updated_at
 		FROM users
 		WHERE id = ?
 		LIMIT 1`
 
-	user := &domain.User{}
+	user := &model.User{}
 	err := r.db.QueryRow(query, id).Scan(
 		&user.ID,
 		&user.Name,

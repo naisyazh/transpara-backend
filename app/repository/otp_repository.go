@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/transpara/backend/internal/domain"
+	"github.com/transpara/backend/app/model"
 )
 
 type otpRepository struct {
@@ -13,14 +13,14 @@ type otpRepository struct {
 }
 
 // NewOTPRepository membuat instance otpRepository baru.
-// Mengembalikan domain.OTPRepository (interface) — dependency injection.
-func NewOTPRepository(db *sql.DB) domain.OTPRepository {
+// Mengembalikan model.OTPRepository (interface) — dependency injection.
+func NewOTPRepository(db *sql.DB) model.OTPRepository {
 	return &otpRepository{db: db}
 }
 
 // Save menyimpan OTP token baru ke database.
 // OTPHash sudah dalam bentuk bcrypt sebelum masuk ke sini.
-func (r *otpRepository) Save(otp *domain.OTPToken) (*domain.OTPToken, error) {
+func (r *otpRepository) Save(otp *model.OTPToken) (*model.OTPToken, error) {
 	query := `
 		INSERT INTO otp_tokens (user_id, otp_hash, expires_at)
 		VALUES (?, ?, ?)`
@@ -43,7 +43,7 @@ func (r *otpRepository) Save(otp *domain.OTPToken) (*domain.OTPToken, error) {
 // - belum dipakai (is_used = 0)
 // - belum kadaluarsa (expires_at > NOW())
 // - percobaan belum melebihi batas maksimal
-func (r *otpRepository) FindActiveByUserID(userID uint64) (*domain.OTPToken, error) {
+func (r *otpRepository) FindActiveByUserID(userID uint64) (*model.OTPToken, error) {
 	query := `
 		SELECT id, user_id, otp_hash, expires_at, is_used, attempt_count, created_at
 		FROM otp_tokens
@@ -53,7 +53,7 @@ func (r *otpRepository) FindActiveByUserID(userID uint64) (*domain.OTPToken, err
 		ORDER BY created_at DESC
 		LIMIT 1`
 
-	otp := &domain.OTPToken{}
+	otp := &model.OTPToken{}
 	err := r.db.QueryRow(query, userID).Scan(
 		&otp.ID,
 		&otp.UserID,

@@ -1,4 +1,4 @@
-package usecase
+package service
 
 import (
 	"crypto/rand"
@@ -9,25 +9,25 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/transpara/backend/internal/domain"
-	"github.com/transpara/backend/pkg/helper"
-	"github.com/transpara/backend/internal/infrastructure/email"
+	"github.com/transpara/backend/app/model"
+	"github.com/transpara/backend/helper"
+	"github.com/transpara/backend/helper/email"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// AuthUseCase adalah kontrak (interface) untuk semua use case autentikasi.
-type AuthUseCase interface {
-	Register(req *domain.RegisterRequest) (*RegisterResult, error)
-	VerifyOTP(req *domain.VerifyOTPRequest) (*domain.UserResponse, error)
-	ResendOTP(req *domain.ResendOTPRequest) (*ResendResult, error)
-	Login(req *domain.LoginRequest) (*domain.LoginResponse, error)
+// AuthService adalah kontrak (interface) untuk semua use case autentikasi.
+type AuthService interface {
+	Register(req *model.RegisterRequest) (*RegisterResult, error)
+	VerifyOTP(req *model.VerifyOTPRequest) (*model.UserResponse, error)
+	ResendOTP(req *model.ResendOTPRequest) (*ResendResult, error)
+	Login(req *model.LoginRequest) (*model.LoginResponse, error)
 }
 
 // RegisterResult adalah hasil dari Register.
 // OTPCode dikosongkan setelah email dikirim — tidak dikirim ke client.
 type RegisterResult struct {
-	User    *domain.UserResponse `json:"user"`
-	Message string               `json:"message"`
+	User    *model.UserResponse `json:"user"`
+	Message string              `json:"message"`
 }
 
 // ResendResult adalah hasil dari ResendOTP.
@@ -35,23 +35,23 @@ type ResendResult struct {
 	Message string `json:"message"`
 }
 
-// authUseCase adalah implementasi konkret dari AuthUseCase.
-type authUseCase struct {
-	userRepo     domain.UserRepository
-	otpRepo      domain.OTPRepository
+// authService adalah implementasi konkret dari AuthService.
+type authService struct {
+	userRepo     model.UserRepository
+	otpRepo      model.OTPRepository
 	jwtHelper    *helper.JWTHelper
 	emailService *email.EmailService
 	validate     *validator.Validate
 }
 
-// NewAuthUseCase membuat instance authUseCase baru (dependency injection).
-func NewAuthUseCase(
-	userRepo domain.UserRepository,
-	otpRepo domain.OTPRepository,
+// NewAuthService membuat instance authService baru (dependency injection).
+func NewAuthService(
+	userRepo model.UserRepository,
+	otpRepo model.OTPRepository,
 	jwtHelper *helper.JWTHelper,
 	emailService *email.EmailService,
-) AuthUseCase {
-	return &authUseCase{
+) AuthService {
+	return &authService{
 		userRepo:     userRepo,
 		otpRepo:      otpRepo,
 		jwtHelper:    jwtHelper,
@@ -63,7 +63,7 @@ func NewAuthUseCase(
 // ─────────────────────────────────────────────────────────────────────────────
 // Register — daftarkan user baru, buat OTP, kirim ke email
 // ─────────────────────────────────────────────────────────────────────────────
-func (uc *authUseCase) Register(req *domain.RegisterRequest) (*RegisterResult, error) {
+func (uc *authService) Register(req *model.RegisterRequest) (*RegisterResult, error) {
 	// 1. Validasi input
 	if err := uc.validate.Struct(req); err != nil {
 		var ve validator.ValidationErrors
@@ -89,7 +89,7 @@ func (uc *authUseCase) Register(req *domain.RegisterRequest) (*RegisterResult, e
 	}
 
 	// 4. Simpan user baru (is_verified = 0 secara default)
-	newUser := &domain.User{
+	newUser := &model.User{
 		Name:         req.Name,
 		Email:        req.Email,
 		PasswordHash: string(hashedPassword),
@@ -125,7 +125,7 @@ func (uc *authUseCase) Register(req *domain.RegisterRequest) (*RegisterResult, e
 // ─────────────────────────────────────────────────────────────────────────────
 // VerifyOTP — verifikasi OTP yang dimasukkan user
 // ─────────────────────────────────────────────────────────────────────────────
-func (uc *authUseCase) VerifyOTP(req *domain.VerifyOTPRequest) (*domain.UserResponse, error) {
+func (uc *authService) VerifyOTP(req *model.VerifyOTPRequest) (*model.UserResponse, error) {
 	if err := uc.validate.Struct(req); err != nil {
 		var ve validator.ValidationErrors
 		if errors.As(err, &ve) {
@@ -150,16 +150,16 @@ func (uc *authUseCase) VerifyOTP(req *domain.VerifyOTPRequest) (*domain.UserResp
 		return nil, errors.New("OTP tidak ditemukan atau sudah kadaluarsa, minta OTP baru")
 	}
 
-	if otpToken.AttemptCount >= domain.OTPMaxAttempt {
+	if otpToken.AttemptCount >= model.OTPMaxAttempt {
 		return nil, fmt.Errorf(
 			"terlalu banyak percobaan salah (%d/%d), minta OTP baru",
-			otpToken.AttemptCount, domain.OTPMaxAttempt,
+			otpToken.AttemptCount, model.OTPMaxAttempt,
 		)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(otpToken.OTPHash), []byte(req.OTP)); err != nil {
 		_ = uc.otpRepo.IncrementAttempt(otpToken.ID)
-		remaining := domain.OTPMaxAttempt - (otpToken.AttemptCount + 1)
+		remaining := model.OTPMaxAttempt - (otpToken.AttemptCount + 1)
 		return nil, fmt.Errorf("OTP salah, sisa percobaan: %d", remaining)
 	}
 
@@ -181,7 +181,7 @@ func (uc *authUseCase) VerifyOTP(req *domain.VerifyOTPRequest) (*domain.UserResp
 // ─────────────────────────────────────────────────────────────────────────────
 // ResendOTP — kirim ulang OTP baru ke email user
 // ─────────────────────────────────────────────────────────────────────────────
-func (uc *authUseCase) ResendOTP(req *domain.ResendOTPRequest) (*ResendResult, error) {
+func (uc *authService) ResendOTP(req *model.ResendOTPRequest) (*ResendResult, error) {
 	if err := uc.validate.Struct(req); err != nil {
 		var ve validator.ValidationErrors
 		if errors.As(err, &ve) {
@@ -228,7 +228,7 @@ func (uc *authUseCase) ResendOTP(req *domain.ResendOTPRequest) (*ResendResult, e
 // ─────────────────────────────────────────────────────────────────────────────
 // Login — autentikasi user dan kembalikan JWT token
 // ─────────────────────────────────────────────────────────────────────────────
-func (uc *authUseCase) Login(req *domain.LoginRequest) (*domain.LoginResponse, error) {
+func (uc *authService) Login(req *model.LoginRequest) (*model.LoginResponse, error) {
 	if err := uc.validate.Struct(req); err != nil {
 		var ve validator.ValidationErrors
 		if errors.As(err, &ve) {
@@ -257,7 +257,7 @@ func (uc *authUseCase) Login(req *domain.LoginRequest) (*domain.LoginResponse, e
 		return nil, errors.New("gagal membuat token, coba lagi")
 	}
 
-	return &domain.LoginResponse{
+	return &model.LoginResponse{
 		AccessToken: token,
 		TokenType:   "Bearer",
 		User:        *user.ToResponse(),
@@ -281,16 +281,16 @@ func generateOTP() (string, error) {
 	return string(otp), nil
 }
 
-func (uc *authUseCase) saveOTP(userID uint64, otpCode string) error {
+func (uc *authService) saveOTP(userID uint64, otpCode string) error {
 	otpHash, err := bcrypt.GenerateFromPassword([]byte(otpCode), bcrypt.DefaultCost)
 	if err != nil {
 		return errors.New("gagal memproses OTP, coba lagi")
 	}
 
-	otpToken := &domain.OTPToken{
+	otpToken := &model.OTPToken{
 		UserID:    userID,
 		OTPHash:   string(otpHash),
-		ExpiresAt: time.Now().Add(domain.OTPExpiredMinute),
+		ExpiresAt: time.Now().Add(model.OTPExpiredMinute),
 	}
 
 	_, err = uc.otpRepo.Save(otpToken)

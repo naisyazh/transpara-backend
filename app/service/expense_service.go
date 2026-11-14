@@ -1,4 +1,4 @@
-package usecase
+package service
 
 import (
 	"errors"
@@ -7,35 +7,35 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/transpara/backend/internal/domain"
+	"github.com/transpara/backend/app/model"
 )
 
-// ExpenseUseCase adalah kontrak use case untuk pengajuan dana dan voting.
+// ExpenseService adalah kontrak use case untuk pengajuan dana dan voting.
 //
 // EnsureApproved dipakai Developer 2 (modul transaksi) sebelum mencairkan
 // dana: hanya pengajuan berstatus approved yang lolos.
-type ExpenseUseCase interface {
-	Create(userID uint64, req *domain.CreateExpenseRequest) (*domain.ExpenseRequest, error)
-	GetByID(id uint64) (*domain.ExpenseRequest, error)
+type ExpenseService interface {
+	Create(userID uint64, req *model.CreateExpenseRequest) (*model.ExpenseRequest, error)
+	GetByID(id uint64) (*model.ExpenseRequest, error)
 	// EnsureApproved mengembalikan pengajuan jika statusnya approved.
-	// Status pending atau rejected mengembalikan domain.ErrRequestNotApproved.
-	EnsureApproved(id uint64) (*domain.ExpenseRequest, error)
-	List(status string) ([]domain.ExpenseRequest, error)
-	Vote(userID, requestID uint64, req *domain.VoteRequest) (*domain.ExpenseRequest, error)
+	// Status pending atau rejected mengembalikan model.ErrRequestNotApproved.
+	EnsureApproved(id uint64) (*model.ExpenseRequest, error)
+	List(status string) ([]model.ExpenseRequest, error)
+	Vote(userID, requestID uint64, req *model.VoteRequest) (*model.ExpenseRequest, error)
 }
 
-type expenseUseCase struct {
-	budgetRepo  domain.BudgetRepository
-	expenseRepo domain.ExpenseRequestRepository
+type expenseService struct {
+	budgetRepo  model.BudgetRepository
+	expenseRepo model.ExpenseRequestRepository
 	validate    *validator.Validate
 }
 
-// NewExpenseUseCase membuat instance expenseUseCase baru (dependency injection).
-func NewExpenseUseCase(
-	budgetRepo domain.BudgetRepository,
-	expenseRepo domain.ExpenseRequestRepository,
-) ExpenseUseCase {
-	return &expenseUseCase{
+// NewExpenseService membuat instance expenseService baru (dependency injection).
+func NewExpenseService(
+	budgetRepo model.BudgetRepository,
+	expenseRepo model.ExpenseRequestRepository,
+) ExpenseService {
+	return &expenseService{
 		budgetRepo:  budgetRepo,
 		expenseRepo: expenseRepo,
 		validate:    validator.New(),
@@ -43,7 +43,7 @@ func NewExpenseUseCase(
 }
 
 // Create — ajukan penggunaan dana. Anggota maupun bendahara boleh mengajukan.
-func (uc *expenseUseCase) Create(userID uint64, req *domain.CreateExpenseRequest) (*domain.ExpenseRequest, error) {
+func (uc *expenseService) Create(userID uint64, req *model.CreateExpenseRequest) (*model.ExpenseRequest, error) {
 	// 1. Validasi input
 	if err := uc.validate.Struct(req); err != nil {
 		var ve validator.ValidationErrors
@@ -63,7 +63,7 @@ func (uc *expenseUseCase) Create(userID uint64, req *domain.CreateExpenseRequest
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.Local)
 	if today.Before(budget.StartDate) || today.After(budget.EndDate) {
-		return nil, domain.ErrOutsideBudgetPeriod
+		return nil, model.ErrOutsideBudgetPeriod
 	}
 
 	// 4. Nominal tidak boleh melebihi sisa dana.
@@ -75,46 +75,46 @@ func (uc *expenseUseCase) Create(userID uint64, req *domain.CreateExpenseRequest
 		return nil, err
 	}
 	if amount > remaining {
-		return nil, fmt.Errorf("%w (sisa dana: Rp%.2f)", domain.ErrAmountExceedsRemaining, remaining)
+		return nil, fmt.Errorf("%w (sisa dana: Rp%.2f)", model.ErrAmountExceedsRemaining, remaining)
 	}
 
 	// 5. Simpan dengan status awal pending
-	return uc.expenseRepo.Create(&domain.ExpenseRequest{
+	return uc.expenseRepo.Create(&model.ExpenseRequest{
 		BudgetID:    budget.ID,
 		RequestedBy: userID,
 		Title:       strings.TrimSpace(req.Title),
 		Amount:      amount,
 		Reason:      strings.TrimSpace(req.Reason),
-		Status:      domain.ExpenseStatusPending,
+		Status:      model.ExpenseStatusPending,
 	})
 }
 
 // GetByID — detail satu pengajuan (termasuk status dan hitungan suara).
-func (uc *expenseUseCase) GetByID(id uint64) (*domain.ExpenseRequest, error) {
+func (uc *expenseService) GetByID(id uint64) (*model.ExpenseRequest, error) {
 	return uc.expenseRepo.FindByID(id)
 }
 
 // EnsureApproved — dipakai modul transaksi sebelum bendahara mencairkan dana.
 // Mengembalikan pengajuan jika statusnya approved. Jika pending atau rejected
-// dikembalikan domain.ErrRequestNotApproved, jika id tidak ada dikembalikan
-// domain.ErrExpenseNotFound.
-func (uc *expenseUseCase) EnsureApproved(id uint64) (*domain.ExpenseRequest, error) {
+// dikembalikan model.ErrRequestNotApproved, jika id tidak ada dikembalikan
+// model.ErrExpenseNotFound.
+func (uc *expenseService) EnsureApproved(id uint64) (*model.ExpenseRequest, error) {
 	req, err := uc.expenseRepo.FindByID(id)
 	if err != nil {
 		return nil, err
 	}
-	if req.Status != domain.ExpenseStatusApproved {
-		return nil, domain.ErrRequestNotApproved
+	if req.Status != model.ExpenseStatusApproved {
+		return nil, model.ErrRequestNotApproved
 	}
 	return req, nil
 }
 
 // List — daftar pengajuan. status boleh kosong, atau pending/approved/rejected.
-func (uc *expenseUseCase) List(status string) ([]domain.ExpenseRequest, error) {
+func (uc *expenseService) List(status string) ([]model.ExpenseRequest, error) {
 	status = strings.ToLower(strings.TrimSpace(status))
 
 	switch status {
-	case "", domain.ExpenseStatusPending, domain.ExpenseStatusApproved, domain.ExpenseStatusRejected:
+	case "", model.ExpenseStatusPending, model.ExpenseStatusApproved, model.ExpenseStatusRejected:
 		// status valid
 	default:
 		return nil, errors.New("status tidak valid, gunakan pending, approved, atau rejected")
@@ -124,7 +124,7 @@ func (uc *expenseUseCase) List(status string) ([]domain.ExpenseRequest, error) {
 }
 
 // Vote — anggota memberi suara setuju (yes) atau tolak (no).
-func (uc *expenseUseCase) Vote(userID, requestID uint64, req *domain.VoteRequest) (*domain.ExpenseRequest, error) {
+func (uc *expenseService) Vote(userID, requestID uint64, req *model.VoteRequest) (*model.ExpenseRequest, error) {
 	// 1. Validasi input
 	if err := uc.validate.Struct(req); err != nil {
 		var ve validator.ValidationErrors
@@ -141,8 +141,8 @@ func (uc *expenseUseCase) Vote(userID, requestID uint64, req *domain.VoteRequest
 	if err != nil {
 		return nil, err
 	}
-	if current.Status != domain.ExpenseStatusPending {
-		return nil, domain.ErrRequestNotPending
+	if current.Status != model.ExpenseStatusPending {
+		return nil, model.ErrRequestNotPending
 	}
 
 	voted, err := uc.expenseRepo.HasVoted(requestID, userID)
@@ -150,7 +150,7 @@ func (uc *expenseUseCase) Vote(userID, requestID uint64, req *domain.VoteRequest
 		return nil, err
 	}
 	if voted {
-		return nil, domain.ErrAlreadyVoted
+		return nil, model.ErrAlreadyVoted
 	}
 
 	// 3. Total anggota = dasar hitungan ambang 50%
@@ -163,9 +163,9 @@ func (uc *expenseUseCase) Vote(userID, requestID uint64, req *domain.VoteRequest
 	}
 
 	// 4. decide dijalankan repository DI DALAM transaksi, setelah baris terkunci
-	decide := func(cur *domain.ExpenseRequest, yesAfter, noAfter int) (string, error) {
-		if cur.Status != domain.ExpenseStatusPending {
-			return "", domain.ErrRequestNotPending
+	decide := func(cur *model.ExpenseRequest, yesAfter, noAfter int) (string, error) {
+		if cur.Status != model.ExpenseStatusPending {
+			return "", model.ErrRequestNotPending
 		}
 		return decideVoteStatus(yesAfter, noAfter, totalMembers), nil
 	}
@@ -185,10 +185,10 @@ func (uc *expenseUseCase) Vote(userID, requestID uint64, req *domain.VoteRequest
 func decideVoteStatus(yes, no, total int) string {
 	switch {
 	case yes*2 > total:
-		return domain.ExpenseStatusApproved
+		return model.ExpenseStatusApproved
 	case no*2 >= total:
-		return domain.ExpenseStatusRejected
+		return model.ExpenseStatusRejected
 	default:
-		return domain.ExpenseStatusPending
+		return model.ExpenseStatusPending
 	}
 }

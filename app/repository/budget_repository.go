@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/transpara/backend/internal/domain"
+	"github.com/transpara/backend/app/model"
 )
 
 const sqlDateLayout = "2006-01-02"
@@ -26,14 +26,14 @@ type budgetRepository struct {
 }
 
 // NewBudgetRepository membuat instance budgetRepository baru (dependency injection).
-func NewBudgetRepository(db *sql.DB) domain.BudgetRepository {
+func NewBudgetRepository(db *sql.DB) model.BudgetRepository {
 	return &budgetRepository{db: db}
 }
 
 const budgetColumns = `id, name, description, max_amount, start_date, end_date, created_by, created_at, updated_at`
 
-func scanBudget(s rowScanner) (*domain.Budget, error) {
-	b := &domain.Budget{}
+func scanBudget(s rowScanner) (*model.Budget, error) {
+	b := &model.Budget{}
 	var description sql.NullString // kolom description boleh NULL
 
 	err := s.Scan(
@@ -52,7 +52,7 @@ func toNullString(s string) sql.NullString {
 }
 
 // Create menyimpan pos anggaran baru.
-func (r *budgetRepository) Create(b *domain.Budget) (*domain.Budget, error) {
+func (r *budgetRepository) Create(b *model.Budget) (*model.Budget, error) {
 	query := `
 		INSERT INTO budgets (name, description, max_amount, start_date, end_date, created_by)
 		VALUES (?, ?, ?, ?, ?, ?)`
@@ -73,8 +73,8 @@ func (r *budgetRepository) Create(b *domain.Budget) (*domain.Budget, error) {
 	return r.FindByID(uint64(lastID))
 }
 
-// Update mengubah data pos anggaran. Keberadaan pos dicek oleh usecase.
-func (r *budgetRepository) Update(b *domain.Budget) (*domain.Budget, error) {
+// Update mengubah data pos anggaran. Keberadaan pos dicek oleh service.
+func (r *budgetRepository) Update(b *model.Budget) (*model.Budget, error) {
 	query := `
 		UPDATE budgets
 		SET name = ?, description = ?, max_amount = ?, start_date = ?, end_date = ?
@@ -92,13 +92,13 @@ func (r *budgetRepository) Update(b *domain.Budget) (*domain.Budget, error) {
 }
 
 // FindByID mencari pos anggaran berdasarkan ID.
-func (r *budgetRepository) FindByID(id uint64) (*domain.Budget, error) {
+func (r *budgetRepository) FindByID(id uint64) (*model.Budget, error) {
 	query := `SELECT ` + budgetColumns + ` FROM budgets WHERE id = ? LIMIT 1`
 
 	b, err := scanBudget(r.db.QueryRow(query, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, domain.ErrBudgetNotFound
+			return nil, model.ErrBudgetNotFound
 		}
 		return nil, fmt.Errorf("gagal mencari pos anggaran: %w", err)
 	}
@@ -106,7 +106,7 @@ func (r *budgetRepository) FindByID(id uint64) (*domain.Budget, error) {
 }
 
 // FindAll mengembalikan semua pos anggaran, periode terbaru di atas.
-func (r *budgetRepository) FindAll() ([]domain.Budget, error) {
+func (r *budgetRepository) FindAll() ([]model.Budget, error) {
 	query := `SELECT ` + budgetColumns + ` FROM budgets ORDER BY start_date DESC, id DESC`
 
 	rows, err := r.db.Query(query)
@@ -115,7 +115,7 @@ func (r *budgetRepository) FindAll() ([]domain.Budget, error) {
 	}
 	defer rows.Close()
 
-	budgets := make([]domain.Budget, 0) // supaya JSON jadi [] bukan null
+	budgets := make([]model.Budget, 0) // supaya JSON jadi [] bukan null
 	for rows.Next() {
 		b, err := scanBudget(rows)
 		if err != nil {
@@ -150,7 +150,7 @@ func remainingAmount(q queryRower, budgetID uint64) (float64, error) {
 	var remaining float64
 	if err := q.QueryRow(query, budgetID).Scan(&remaining); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return 0, domain.ErrBudgetNotFound
+			return 0, model.ErrBudgetNotFound
 		}
 		return 0, fmt.Errorf("gagal menghitung sisa dana: %w", err)
 	}

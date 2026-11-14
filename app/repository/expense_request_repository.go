@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/transpara/backend/internal/domain"
+	"github.com/transpara/backend/app/model"
 )
 
 type expenseRequestRepository struct {
@@ -14,15 +14,15 @@ type expenseRequestRepository struct {
 }
 
 // NewExpenseRequestRepository membuat instance expenseRequestRepository baru.
-func NewExpenseRequestRepository(db *sql.DB) domain.ExpenseRequestRepository {
+func NewExpenseRequestRepository(db *sql.DB) model.ExpenseRequestRepository {
 	return &expenseRequestRepository{db: db}
 }
 
 const expenseColumns = `id, budget_id, requested_by, title, amount, reason, status,
 	yes_votes, no_votes, decided_at, created_at, updated_at`
 
-func scanExpense(s rowScanner) (*domain.ExpenseRequest, error) {
-	e := &domain.ExpenseRequest{}
+func scanExpense(s rowScanner) (*model.ExpenseRequest, error) {
+	e := &model.ExpenseRequest{}
 	var decidedAt sql.NullTime // NULL selama masih pending
 
 	err := s.Scan(
@@ -43,7 +43,7 @@ func scanExpense(s rowScanner) (*domain.ExpenseRequest, error) {
 //
 // Berjalan dalam transaksi dengan baris pos anggaran dikunci (FOR UPDATE),
 // supaya dua pengajuan yang masuk bersamaan tidak sama-sama lolos cek sisa dana.
-func (r *expenseRequestRepository) Create(req *domain.ExpenseRequest) (*domain.ExpenseRequest, error) {
+func (r *expenseRequestRepository) Create(req *model.ExpenseRequest) (*model.ExpenseRequest, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("gagal memulai transaksi: %w", err)
@@ -54,7 +54,7 @@ func (r *expenseRequestRepository) Create(req *domain.ExpenseRequest) (*domain.E
 	err = tx.QueryRow(`SELECT id FROM budgets WHERE id = ? FOR UPDATE`, req.BudgetID).Scan(&lockedID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, domain.ErrBudgetNotFound
+			return nil, model.ErrBudgetNotFound
 		}
 		return nil, fmt.Errorf("gagal mengunci pos anggaran: %w", err)
 	}
@@ -64,7 +64,7 @@ func (r *expenseRequestRepository) Create(req *domain.ExpenseRequest) (*domain.E
 		return nil, err
 	}
 	if req.Amount > remaining {
-		return nil, domain.ErrAmountExceedsRemaining
+		return nil, model.ErrAmountExceedsRemaining
 	}
 
 	result, err := tx.Exec(`
@@ -89,13 +89,13 @@ func (r *expenseRequestRepository) Create(req *domain.ExpenseRequest) (*domain.E
 }
 
 // FindByID mencari pengajuan berdasarkan ID.
-func (r *expenseRequestRepository) FindByID(id uint64) (*domain.ExpenseRequest, error) {
+func (r *expenseRequestRepository) FindByID(id uint64) (*model.ExpenseRequest, error) {
 	query := `SELECT ` + expenseColumns + ` FROM expense_requests WHERE id = ? LIMIT 1`
 
 	e, err := scanExpense(r.db.QueryRow(query, id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, domain.ErrExpenseNotFound
+			return nil, model.ErrExpenseNotFound
 		}
 		return nil, fmt.Errorf("gagal mencari pengajuan: %w", err)
 	}
@@ -104,7 +104,7 @@ func (r *expenseRequestRepository) FindByID(id uint64) (*domain.ExpenseRequest, 
 
 // FindAll mengembalikan daftar pengajuan, terbaru di atas.
 // Jika status tidak kosong, hanya pengajuan dengan status itu yang diambil.
-func (r *expenseRequestRepository) FindAll(status string) ([]domain.ExpenseRequest, error) {
+func (r *expenseRequestRepository) FindAll(status string) ([]model.ExpenseRequest, error) {
 	query := `SELECT ` + expenseColumns + ` FROM expense_requests`
 	args := []any{}
 
@@ -120,7 +120,7 @@ func (r *expenseRequestRepository) FindAll(status string) ([]domain.ExpenseReque
 	}
 	defer rows.Close()
 
-	list := make([]domain.ExpenseRequest, 0) // supaya JSON jadi [] bukan null
+	list := make([]model.ExpenseRequest, 0) // supaya JSON jadi [] bukan null
 	for rows.Next() {
 		e, err := scanExpense(rows)
 		if err != nil {
@@ -171,8 +171,8 @@ func (r *expenseRequestRepository) CountVotingMembers() (int, error) {
 //     terakhir kalau user yang sama mengirim dua kali bersamaan.
 //  5. Update yes_votes, no_votes, dan status (+ decided_at jika sudah diputuskan).
 func (r *expenseRequestRepository) CastVote(
-	requestID, userID uint64, vote string, decide domain.DecideFunc,
-) (*domain.ExpenseRequest, error) {
+	requestID, userID uint64, vote string, decide model.DecideFunc,
+) (*model.ExpenseRequest, error) {
 	tx, err := r.db.Begin()
 	if err != nil {
 		return nil, fmt.Errorf("gagal memulai transaksi: %w", err)
@@ -185,14 +185,14 @@ func (r *expenseRequestRepository) CastVote(
 	))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, domain.ErrExpenseNotFound
+			return nil, model.ErrExpenseNotFound
 		}
 		return nil, fmt.Errorf("gagal mengunci pengajuan: %w", err)
 	}
 
 	// 2. Hitungan suara setelah suara ini
 	yes, no := current.YesVotes, current.NoVotes
-	if vote == domain.VoteYes {
+	if vote == model.VoteYes {
 		yes++
 	} else {
 		no++
@@ -211,13 +211,13 @@ func (r *expenseRequestRepository) CastVote(
 	)
 	if err != nil {
 		if isDuplicateVoteError(err) {
-			return nil, domain.ErrAlreadyVoted
+			return nil, model.ErrAlreadyVoted
 		}
 		return nil, fmt.Errorf("gagal menyimpan suara: %w", err)
 	}
 
 	// 5. Update hitungan dan status
-	if newStatus == domain.ExpenseStatusPending {
+	if newStatus == model.ExpenseStatusPending {
 		_, err = tx.Exec(
 			`UPDATE expense_requests SET yes_votes = ?, no_votes = ? WHERE id = ?`,
 			yes, no, requestID,
