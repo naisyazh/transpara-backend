@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/transpara/backend/domain"
-	"github.com/transpara/backend/helper"
-	"github.com/transpara/backend/infrastructure/email"
+	"github.com/transpara/backend/internal/domain"
+	"github.com/transpara/backend/pkg/helper"
+	"github.com/transpara/backend/internal/infrastructure/email"
 	"golang.org/x/crypto/bcrypt"
 )
 

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/transpara/backend/domain"
+	"github.com/transpara/backend/internal/domain"
 )
 
 type otpRepository struct {

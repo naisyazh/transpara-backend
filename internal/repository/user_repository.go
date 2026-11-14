@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/transpara/backend/domain"
+	"github.com/transpara/backend/internal/domain"
 )
 
 type userRepository struct {

@@ -4,14 +4,15 @@ import (
 	"log"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/transpara/backend/config"
-	"github.com/transpara/backend/database"
-	"github.com/transpara/backend/delivery"
-	"github.com/transpara/backend/helper"
-	"github.com/transpara/backend/infrastructure/email"
-	"github.com/transpara/backend/repository"
-	"github.com/transpara/backend/router"
-	"github.com/transpara/backend/usecase"
+
+	"github.com/transpara/backend/internal/delivery"
+	"github.com/transpara/backend/internal/delivery/router"
+	"github.com/transpara/backend/internal/infrastructure/email"
+	"github.com/transpara/backend/internal/repository"
+	"github.com/transpara/backend/internal/usecase"
+	"github.com/transpara/backend/pkg/config"
+	"github.com/transpara/backend/pkg/database"
+	"github.com/transpara/backend/pkg/helper"
 )
 
 func main() {
@@ -29,10 +30,10 @@ func main() {
 	emailService := email.NewEmailService(cfg)
 
 	// ── 5. Dependency Injection ───────────────────────────────────
-	userRepo    := repository.NewUserRepository(db)
-	otpRepo     := repository.NewOTPRepository(db)
+	userRepo := repository.NewUserRepository(db)
+	otpRepo := repository.NewOTPRepository(db)
 	authUseCase := usecase.NewAuthUseCase(userRepo, otpRepo, jwtHelper, emailService)
-	authHandler := handler.NewAuthHandler(authUseCase)
+	authDelivery := delivery.NewAuthDelivery(authUseCase)
 
 	// ── 6. Setup Aplikasi Fiber ───────────────────────────────────
 	app := fiber.New(fiber.Config{
@@ -52,9 +53,9 @@ func main() {
 	})
 
 	// ── 7. Routes ─────────────────────────────────────────────────
-	router.SetupRoutes(app, authHandler, jwtHelper)
+	router.SetupRoutes(app, authDelivery, jwtHelper)
 
-	// ── 8. 404 Handler ────────────────────────────────────────────
+	// ── 8. Endpoint Tidak Ditemukan (404) ─────────────────────────
 	app.Use(func(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
