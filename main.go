@@ -4,15 +4,13 @@ import (
 	"log"
 
 	"github.com/gofiber/fiber/v2"
-
-	"github.com/transpara/backend/internal/delivery"
-	"github.com/transpara/backend/internal/delivery/router"
-	"github.com/transpara/backend/internal/infrastructure/email"
-	"github.com/transpara/backend/internal/repository"
-	"github.com/transpara/backend/internal/usecase"
-	"github.com/transpara/backend/pkg/config"
-	"github.com/transpara/backend/pkg/database"
-	"github.com/transpara/backend/pkg/helper"
+	"github.com/transpara/backend/app/repository"
+	"github.com/transpara/backend/app/service"
+	"github.com/transpara/backend/config"
+	"github.com/transpara/backend/database"
+	"github.com/transpara/backend/helper"
+	"github.com/transpara/backend/helper/email"
+	"github.com/transpara/backend/route"
 )
 
 func main() {
@@ -33,16 +31,16 @@ func main() {
 	// Modul Autentikasi
 	userRepo := repository.NewUserRepository(db)
 	otpRepo := repository.NewOTPRepository(db)
-	authUseCase := usecase.NewAuthUseCase(userRepo, otpRepo, jwtHelper, emailService)
-	authDelivery := delivery.NewAuthDelivery(authUseCase)
+	authService := service.NewAuthService(userRepo, otpRepo, jwtHelper, emailService)
+	authRoute := route.NewAuthRoute(authService)
 
 	// Modul Anggaran dan Voting
 	budgetRepo := repository.NewBudgetRepository(db)
 	expenseRepo := repository.NewExpenseRequestRepository(db)
-	budgetUseCase := usecase.NewBudgetUseCase(budgetRepo)
-	expenseUseCase := usecase.NewExpenseUseCase(budgetRepo, expenseRepo)
-	budgetDelivery := delivery.NewBudgetDelivery(budgetUseCase)
-	expenseDelivery := delivery.NewExpenseDelivery(expenseUseCase)
+	budgetService := service.NewBudgetService(budgetRepo)
+	expenseService := service.NewExpenseService(budgetRepo, expenseRepo)
+	budgetRoute := route.NewBudgetRoute(budgetService)
+	expenseRoute := route.NewExpenseRoute(expenseService)
 
 	// ── 6. Setup Aplikasi Fiber ───────────────────────────────────
 	app := fiber.New(fiber.Config{
@@ -62,8 +60,8 @@ func main() {
 	})
 
 	// ── 7. Routes ─────────────────────────────────────────────────
-	router.SetupRoutes(app, authDelivery, jwtHelper)
-	router.SetupBudgetRoutes(app, budgetDelivery, expenseDelivery, jwtHelper, db)
+	route.SetupRoutes(app, authRoute, jwtHelper)
+	route.SetupBudgetRoutes(app, budgetRoute, expenseRoute, jwtHelper, db)
 
 	// ── 8. Endpoint Tidak Ditemukan (404) ─────────────────────────
 	app.Use(func(c *fiber.Ctx) error {
