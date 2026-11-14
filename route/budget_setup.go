@@ -1,12 +1,11 @@
-package router
+package route
 
 import (
 	"database/sql"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/transpara/backend/internal/delivery"
-	"github.com/transpara/backend/internal/delivery/middleware"
-	"github.com/transpara/backend/pkg/helper"
+	"github.com/transpara/backend/helper"
+	"github.com/transpara/backend/middleware"
 )
 
 // SetupBudgetRoutes mendaftarkan route modul Anggaran dan Voting.
@@ -16,8 +15,8 @@ import (
 // hanya boleh bendahara (RequireRole), anggota biasa mendapat 403 Forbidden.
 func SetupBudgetRoutes(
 	app *fiber.App,
-	budgetDelivery *delivery.BudgetDelivery,
-	expenseDelivery *delivery.ExpenseDelivery,
+	budgetRoute *BudgetRoute,
+	expenseRoute *ExpenseRoute,
 	jwtHelper *helper.JWTHelper,
 	db *sql.DB,
 ) {
@@ -28,15 +27,15 @@ func SetupBudgetRoutes(
 
 	// ── Pos Anggaran ──────────────────────────────────────────────
 	budgets := api.Group("/budgets")
-	budgets.Get("/", requireAuth, budgetDelivery.List)
-	budgets.Get("/:id", requireAuth, budgetDelivery.GetByID)
-	budgets.Post("/", requireAuth, requireTreasurer, budgetDelivery.Create)
-	budgets.Put("/:id", requireAuth, requireTreasurer, budgetDelivery.Update)
+	budgets.Get("/", requireAuth, budgetRoute.List)
+	budgets.Get("/:id", requireAuth, budgetRoute.GetByID)
+	budgets.Post("/", requireAuth, requireTreasurer, budgetRoute.Create)
+	budgets.Put("/:id", requireAuth, requireTreasurer, budgetRoute.Update)
 
 	// ── Pengajuan Dana dan Voting ─────────────────────────────────
 	expenses := api.Group("/expense-requests")
-	expenses.Get("/", requireAuth, expenseDelivery.List)
-	expenses.Get("/:id", requireAuth, expenseDelivery.GetByID)
-	expenses.Post("/", requireAuth, expenseDelivery.Create)
-	expenses.Post("/:id/vote", requireAuth, expenseDelivery.Vote)
+	expenses.Get("/", requireAuth, expenseRoute.List)
+	expenses.Get("/:id", requireAuth, expenseRoute.GetByID)
+	expenses.Post("/", requireAuth, expenseRoute.Create)
+	expenses.Post("/:id/vote", requireAuth, expenseRoute.Vote)
 }

@@ -1,34 +1,34 @@
-package delivery
+package route
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/transpara/backend/internal/domain"
-	"github.com/transpara/backend/internal/usecase"
+	"github.com/transpara/backend/app/model"
+	"github.com/transpara/backend/app/service"
 )
 
-// BudgetDelivery menangani request HTTP untuk pos anggaran.
+// BudgetRoute menangani request HTTP untuk pos anggaran.
 // Tidak ada business logic di sini, semua diteruskan ke use case.
-type BudgetDelivery struct {
-	budgetUseCase usecase.BudgetUseCase
+type BudgetRoute struct {
+	budgetService service.BudgetService
 }
 
-func NewBudgetDelivery(budgetUseCase usecase.BudgetUseCase) *BudgetDelivery {
-	return &BudgetDelivery{budgetUseCase: budgetUseCase}
+func NewBudgetRoute(budgetService service.BudgetService) *BudgetRoute {
+	return &BudgetRoute{budgetService: budgetService}
 }
 
 // Create — POST /api/v1/budgets (khusus bendahara, dijaga di router)
-func (h *BudgetDelivery) Create(c *fiber.Ctx) error {
+func (h *BudgetRoute) Create(c *fiber.Ctx) error {
 	userID, ok := getAuthUserID(c)
 	if !ok {
 		return respondFail(c, fiber.StatusUnauthorized, "Sesi tidak valid, silakan login kembali")
 	}
 
-	var req domain.BudgetRequest
+	var req model.BudgetRequest
 	if err := c.BodyParser(&req); err != nil {
 		return respondFail(c, fiber.StatusBadRequest, "Format request tidak valid, pastikan body berupa JSON")
 	}
 
-	result, err := h.budgetUseCase.Create(userID, &req)
+	result, err := h.budgetService.Create(userID, &req)
 	if err != nil {
 		return respondDomainError(c, err)
 	}
@@ -37,18 +37,18 @@ func (h *BudgetDelivery) Create(c *fiber.Ctx) error {
 }
 
 // Update — PUT /api/v1/budgets/:id (khusus bendahara, dijaga di router)
-func (h *BudgetDelivery) Update(c *fiber.Ctx) error {
+func (h *BudgetRoute) Update(c *fiber.Ctx) error {
 	id, ok := parsePathID(c)
 	if !ok {
 		return respondFail(c, fiber.StatusBadRequest, "ID pos anggaran tidak valid")
 	}
 
-	var req domain.BudgetRequest
+	var req model.BudgetRequest
 	if err := c.BodyParser(&req); err != nil {
 		return respondFail(c, fiber.StatusBadRequest, "Format request tidak valid, pastikan body berupa JSON")
 	}
 
-	result, err := h.budgetUseCase.Update(id, &req)
+	result, err := h.budgetService.Update(id, &req)
 	if err != nil {
 		return respondDomainError(c, err)
 	}
@@ -57,13 +57,13 @@ func (h *BudgetDelivery) Update(c *fiber.Ctx) error {
 }
 
 // GetByID — GET /api/v1/budgets/:id
-func (h *BudgetDelivery) GetByID(c *fiber.Ctx) error {
+func (h *BudgetRoute) GetByID(c *fiber.Ctx) error {
 	id, ok := parsePathID(c)
 	if !ok {
 		return respondFail(c, fiber.StatusBadRequest, "ID pos anggaran tidak valid")
 	}
 
-	result, err := h.budgetUseCase.GetByID(id)
+	result, err := h.budgetService.GetByID(id)
 	if err != nil {
 		return respondDomainError(c, err)
 	}
@@ -72,8 +72,8 @@ func (h *BudgetDelivery) GetByID(c *fiber.Ctx) error {
 }
 
 // List — GET /api/v1/budgets
-func (h *BudgetDelivery) List(c *fiber.Ctx) error {
-	result, err := h.budgetUseCase.List()
+func (h *BudgetRoute) List(c *fiber.Ctx) error {
+	result, err := h.budgetService.List()
 	if err != nil {
 		return respondDomainError(c, err)
 	}

@@ -1,24 +1,24 @@
-package delivery
+package route
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/transpara/backend/internal/domain"
-	"github.com/transpara/backend/internal/usecase"
+	"github.com/transpara/backend/app/model"
+	"github.com/transpara/backend/app/service"
 )
 
-// AuthDelivery menerima semua request HTTP untuk modul autentikasi.
+// AuthRoute menerima semua request HTTP untuk modul autentikasi.
 // Tidak ada business logic di sini — semua diteruskan ke use case.
-type AuthDelivery struct {
-	authUseCase usecase.AuthUseCase
+type AuthRoute struct {
+	authService service.AuthService
 }
 
-func NewAuthDelivery(authUseCase usecase.AuthUseCase) *AuthDelivery {
-	return &AuthDelivery{authUseCase: authUseCase}
+func NewAuthRoute(authService service.AuthService) *AuthRoute {
+	return &AuthRoute{authService: authService}
 }
 
 // Register — POST /api/v1/auth/register
-func (d *AuthDelivery) Register(c *fiber.Ctx) error {
-	var req domain.RegisterRequest
+func (d *AuthRoute) Register(c *fiber.Ctx) error {
+	var req model.RegisterRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
@@ -26,7 +26,7 @@ func (d *AuthDelivery) Register(c *fiber.Ctx) error {
 		})
 	}
 
-	result, err := d.authUseCase.Register(&req)
+	result, err := d.authService.Register(&req)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
@@ -42,8 +42,8 @@ func (d *AuthDelivery) Register(c *fiber.Ctx) error {
 }
 
 // VerifyOTP — POST /api/v1/auth/verify-otp
-func (d *AuthDelivery) VerifyOTP(c *fiber.Ctx) error {
-	var req domain.VerifyOTPRequest
+func (d *AuthRoute) VerifyOTP(c *fiber.Ctx) error {
+	var req model.VerifyOTPRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
@@ -51,7 +51,7 @@ func (d *AuthDelivery) VerifyOTP(c *fiber.Ctx) error {
 		})
 	}
 
-	userResponse, err := d.authUseCase.VerifyOTP(&req)
+	userResponse, err := d.authService.VerifyOTP(&req)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
@@ -67,8 +67,8 @@ func (d *AuthDelivery) VerifyOTP(c *fiber.Ctx) error {
 }
 
 // ResendOTP — POST /api/v1/auth/resend-otp
-func (d *AuthDelivery) ResendOTP(c *fiber.Ctx) error {
-	var req domain.ResendOTPRequest
+func (d *AuthRoute) ResendOTP(c *fiber.Ctx) error {
+	var req model.ResendOTPRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
@@ -76,7 +76,7 @@ func (d *AuthDelivery) ResendOTP(c *fiber.Ctx) error {
 		})
 	}
 
-	result, err := d.authUseCase.ResendOTP(&req)
+	result, err := d.authService.ResendOTP(&req)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
@@ -91,8 +91,8 @@ func (d *AuthDelivery) ResendOTP(c *fiber.Ctx) error {
 }
 
 // Login — POST /api/v1/auth/login
-func (d *AuthDelivery) Login(c *fiber.Ctx) error {
-	var req domain.LoginRequest
+func (d *AuthRoute) Login(c *fiber.Ctx) error {
+	var req model.LoginRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"success": false,
@@ -100,7 +100,7 @@ func (d *AuthDelivery) Login(c *fiber.Ctx) error {
 		})
 	}
 
-	result, err := d.authUseCase.Login(&req)
+	result, err := d.authService.Login(&req)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 			"success": false,

@@ -1,15 +1,14 @@
-package router
+package route
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/transpara/backend/internal/delivery"
-	"github.com/transpara/backend/pkg/helper"
-	"github.com/transpara/backend/internal/delivery/middleware"
+	"github.com/transpara/backend/helper"
+	"github.com/transpara/backend/middleware"
 )
 
 // SetupRoutes mendaftarkan semua route ke aplikasi Fiber.
 // Pola URL: /api/v1/<modul>/<aksi>
-func SetupRoutes(app *fiber.App, authHandler *delivery.AuthDelivery, jwtHelper *helper.JWTHelper) {
+func SetupRoutes(app *fiber.App, authHandler *AuthRoute, jwtHelper *helper.JWTHelper) {
 	api := app.Group("/api/v1")
 
 	// ── Health Check ──────────────────────────────────────────────
@@ -22,10 +21,10 @@ func SetupRoutes(app *fiber.App, authHandler *delivery.AuthDelivery, jwtHelper *
 
 	// ── Modul Autentikasi — Public (tidak butuh token) ────────────
 	auth := api.Group("/auth")
-	auth.Post("/register",   authHandler.Register)
+	auth.Post("/register", authHandler.Register)
 	auth.Post("/verify-otp", authHandler.VerifyOTP)
 	auth.Post("/resend-otp", authHandler.ResendOTP)
-	auth.Post("/login",      authHandler.Login)
+	auth.Post("/login", authHandler.Login)
 
 	// ── Contoh endpoint yang dilindungi JWT ───────────────────────
 	// Endpoint ini membutuhkan header: Authorization: Bearer <token>

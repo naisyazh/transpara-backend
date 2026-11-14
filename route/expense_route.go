@@ -1,34 +1,34 @@
-package delivery
+package route
 
 import (
 	"github.com/gofiber/fiber/v2"
-	"github.com/transpara/backend/internal/domain"
-	"github.com/transpara/backend/internal/usecase"
+	"github.com/transpara/backend/app/model"
+	"github.com/transpara/backend/app/service"
 )
 
-// ExpenseDelivery menangani request HTTP untuk pengajuan dana dan voting.
+// ExpenseRoute menangani request HTTP untuk pengajuan dana dan voting.
 // Tidak ada business logic di sini, semua diteruskan ke use case.
-type ExpenseDelivery struct {
-	expenseUseCase usecase.ExpenseUseCase
+type ExpenseRoute struct {
+	expenseService service.ExpenseService
 }
 
-func NewExpenseDelivery(expenseUseCase usecase.ExpenseUseCase) *ExpenseDelivery {
-	return &ExpenseDelivery{expenseUseCase: expenseUseCase}
+func NewExpenseRoute(expenseService service.ExpenseService) *ExpenseRoute {
+	return &ExpenseRoute{expenseService: expenseService}
 }
 
 // Create — POST /api/v1/expense-requests (anggota dan bendahara)
-func (h *ExpenseDelivery) Create(c *fiber.Ctx) error {
+func (h *ExpenseRoute) Create(c *fiber.Ctx) error {
 	userID, ok := getAuthUserID(c)
 	if !ok {
 		return respondFail(c, fiber.StatusUnauthorized, "Sesi tidak valid, silakan login kembali")
 	}
 
-	var req domain.CreateExpenseRequest
+	var req model.CreateExpenseRequest
 	if err := c.BodyParser(&req); err != nil {
 		return respondFail(c, fiber.StatusBadRequest, "Format request tidak valid, pastikan body berupa JSON")
 	}
 
-	result, err := h.expenseUseCase.Create(userID, &req)
+	result, err := h.expenseService.Create(userID, &req)
 	if err != nil {
 		return respondDomainError(c, err)
 	}
@@ -37,8 +37,8 @@ func (h *ExpenseDelivery) Create(c *fiber.Ctx) error {
 }
 
 // List — GET /api/v1/expense-requests?status=pending|approved|rejected
-func (h *ExpenseDelivery) List(c *fiber.Ctx) error {
-	result, err := h.expenseUseCase.List(c.Query("status"))
+func (h *ExpenseRoute) List(c *fiber.Ctx) error {
+	result, err := h.expenseService.List(c.Query("status"))
 	if err != nil {
 		return respondDomainError(c, err)
 	}
@@ -47,13 +47,13 @@ func (h *ExpenseDelivery) List(c *fiber.Ctx) error {
 }
 
 // GetByID — GET /api/v1/expense-requests/:id
-func (h *ExpenseDelivery) GetByID(c *fiber.Ctx) error {
+func (h *ExpenseRoute) GetByID(c *fiber.Ctx) error {
 	id, ok := parsePathID(c)
 	if !ok {
 		return respondFail(c, fiber.StatusBadRequest, "ID pengajuan tidak valid")
 	}
 
-	result, err := h.expenseUseCase.GetByID(id)
+	result, err := h.expenseService.GetByID(id)
 	if err != nil {
 		return respondDomainError(c, err)
 	}
@@ -63,7 +63,7 @@ func (h *ExpenseDelivery) GetByID(c *fiber.Ctx) error {
 
 // Vote — POST /api/v1/expense-requests/:id/vote
 // Body: {"vote": "yes"} atau {"vote": "no"}
-func (h *ExpenseDelivery) Vote(c *fiber.Ctx) error {
+func (h *ExpenseRoute) Vote(c *fiber.Ctx) error {
 	userID, ok := getAuthUserID(c)
 	if !ok {
 		return respondFail(c, fiber.StatusUnauthorized, "Sesi tidak valid, silakan login kembali")
@@ -74,21 +74,21 @@ func (h *ExpenseDelivery) Vote(c *fiber.Ctx) error {
 		return respondFail(c, fiber.StatusBadRequest, "ID pengajuan tidak valid")
 	}
 
-	var req domain.VoteRequest
+	var req model.VoteRequest
 	if err := c.BodyParser(&req); err != nil {
 		return respondFail(c, fiber.StatusBadRequest, "Format request tidak valid, pastikan body berupa JSON")
 	}
 
-	result, err := h.expenseUseCase.Vote(userID, requestID, &req)
+	result, err := h.expenseService.Vote(userID, requestID, &req)
 	if err != nil {
 		return respondDomainError(c, err)
 	}
 
 	message := "Suara Anda tercatat, voting masih berjalan"
 	switch result.Status {
-	case domain.ExpenseStatusApproved:
+	case model.ExpenseStatusApproved:
 		message = "Suara Anda tercatat, pengajuan disetujui"
-	case domain.ExpenseStatusRejected:
+	case model.ExpenseStatusRejected:
 		message = "Suara Anda tercatat, pengajuan ditolak"
 	}
 
