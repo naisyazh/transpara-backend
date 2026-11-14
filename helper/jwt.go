@@ -19,8 +19,8 @@ type JWTClaims struct {
 
 // JWTHelper mengelola pembuatan dan verifikasi JWT token.
 type JWTHelper struct {
-	secretKey  []byte
-	issuer     string
+	secretKey   []byte
+	issuer      string
 	expiredHour time.Duration
 }
 

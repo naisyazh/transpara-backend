@@ -7,7 +7,7 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql" // driver MySQL wajib di-import agar terdaftar
-	"github.com/transpara/backend/pkg/config"
+	"github.com/transpara/backend/config"
 )
 
 // NewMySQLConnection membuat dan mengembalikan koneksi database MySQL.
@@ -39,8 +39,8 @@ func NewMySQLConnection(cfg *config.Config) *sql.DB {
 	}
 
 	// Konfigurasi connection pool
-	db.SetMaxOpenConns(25)              // maksimal 25 koneksi terbuka sekaligus
-	db.SetMaxIdleConns(5)               // maksimal 5 koneksi idle (siap pakai)
+	db.SetMaxOpenConns(25)                 // maksimal 25 koneksi terbuka sekaligus
+	db.SetMaxIdleConns(5)                  // maksimal 5 koneksi idle (siap pakai)
 	db.SetConnMaxLifetime(5 * time.Minute) // koneksi diperbarui setiap 5 menit
 
 	log.Println("Koneksi database MySQL berhasil")

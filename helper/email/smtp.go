@@ -6,7 +6,7 @@ import (
 	"html/template"
 	"net/smtp"
 
-	"github.com/transpara/backend/pkg/config"
+	"github.com/transpara/backend/config"
 )
 
 // EmailService menangani pengiriman email melalui Gmail SMTP.
