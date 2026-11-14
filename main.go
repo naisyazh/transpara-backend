@@ -30,10 +30,19 @@ func main() {
 	emailService := email.NewEmailService(cfg)
 
 	// ── 5. Dependency Injection ───────────────────────────────────
+	// Modul Autentikasi
 	userRepo := repository.NewUserRepository(db)
 	otpRepo := repository.NewOTPRepository(db)
 	authUseCase := usecase.NewAuthUseCase(userRepo, otpRepo, jwtHelper, emailService)
 	authDelivery := delivery.NewAuthDelivery(authUseCase)
+
+	// Modul Anggaran dan Voting
+	budgetRepo := repository.NewBudgetRepository(db)
+	expenseRepo := repository.NewExpenseRequestRepository(db)
+	budgetUseCase := usecase.NewBudgetUseCase(budgetRepo)
+	expenseUseCase := usecase.NewExpenseUseCase(budgetRepo, expenseRepo)
+	budgetDelivery := delivery.NewBudgetDelivery(budgetUseCase)
+	expenseDelivery := delivery.NewExpenseDelivery(expenseUseCase)
 
 	// ── 6. Setup Aplikasi Fiber ───────────────────────────────────
 	app := fiber.New(fiber.Config{
@@ -54,6 +63,7 @@ func main() {
 
 	// ── 7. Routes ─────────────────────────────────────────────────
 	router.SetupRoutes(app, authDelivery, jwtHelper)
+	router.SetupBudgetRoutes(app, budgetDelivery, expenseDelivery, jwtHelper, db)
 
 	// ── 8. Endpoint Tidak Ditemukan (404) ─────────────────────────
 	app.Use(func(c *fiber.Ctx) error {
@@ -73,6 +83,14 @@ func main() {
 	log.Printf("  POST /api/v1/auth/resend-otp")
 	log.Printf("  POST /api/v1/auth/login")
 	log.Printf("  GET  /api/v1/auth/me        [JWT required]")
+	log.Printf("  GET  /api/v1/budgets                    [JWT]")
+	log.Printf("  GET  /api/v1/budgets/:id                [JWT]")
+	log.Printf("  POST /api/v1/budgets                    [JWT, bendahara]")
+	log.Printf("  PUT  /api/v1/budgets/:id                [JWT, bendahara]")
+	log.Printf("  GET  /api/v1/expense-requests           [JWT]")
+	log.Printf("  GET  /api/v1/expense-requests/:id       [JWT]")
+	log.Printf("  POST /api/v1/expense-requests           [JWT]")
+	log.Printf("  POST /api/v1/expense-requests/:id/vote  [JWT]")
 	log.Printf("=========================================")
 
 	if err := app.Listen(":" + cfg.AppPort); err != nil {
