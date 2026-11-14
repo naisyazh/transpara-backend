@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/transpara/backend/helper"
+	"github.com/transpara/backend/pkg/helper"
 )
 
 // RequireAuth adalah middleware JWT yang melindungi endpoint tertentu.
