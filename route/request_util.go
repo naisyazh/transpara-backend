@@ -50,18 +50,26 @@ func respondFail(c *fiber.Ctx, status int, message string) error {
 func respondDomainError(c *fiber.Ctx, err error) error {
 	switch {
 	case errors.Is(err, model.ErrBudgetNotFound),
-		errors.Is(err, model.ErrExpenseNotFound):
+		errors.Is(err, model.ErrExpenseNotFound),
+		errors.Is(err, model.ErrTransactionNotFound),
+		errors.Is(err, model.ErrCategoryNotFound):
 		return respondFail(c, fiber.StatusNotFound, err.Error())
 
 	case errors.Is(err, model.ErrAlreadyVoted),
-		errors.Is(err, model.ErrRequestNotPending):
+		errors.Is(err, model.ErrRequestNotPending),
+		errors.Is(err, model.ErrAlreadyDisbursed),
+		errors.Is(err, model.ErrCategoryDuplicate):
 		return respondFail(c, fiber.StatusConflict, err.Error())
 
 	case errors.Is(err, model.ErrOutsideBudgetPeriod),
 		errors.Is(err, model.ErrAmountExceedsRemaining),
 		errors.Is(err, model.ErrBudgetPeriodInvalid),
 		errors.Is(err, model.ErrBudgetBelowUsed),
-		errors.Is(err, model.ErrRequestNotApproved):
+		errors.Is(err, model.ErrRequestNotApproved),
+		errors.Is(err, model.ErrExpenseRequestRequired),
+		errors.Is(err, model.ErrIncomeHasExpenseRequest),
+		errors.Is(err, model.ErrAmountRequired),
+		errors.Is(err, model.ErrCategoryTypeMismatch):
 		return respondFail(c, fiber.StatusUnprocessableEntity, err.Error())
 
 	case errors.Unwrap(err) != nil:

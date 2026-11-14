@@ -42,6 +42,15 @@ func main() {
 	budgetRoute := route.NewBudgetRoute(budgetService)
 	expenseRoute := route.NewExpenseRoute(expenseService)
 
+	// Modul Transaksi Keuangan
+	// expenseService dipakai ulang supaya transaksi bisa memanggil EnsureApproved.
+	categoryRepo := repository.NewCategoryRepository(db)
+	transactionRepo := repository.NewTransactionRepository(db)
+	categoryService := service.NewCategoryService(categoryRepo)
+	transactionService := service.NewTransactionService(transactionRepo, categoryRepo, expenseService)
+	categoryRoute := route.NewCategoryRoute(categoryService)
+	transactionRoute := route.NewTransactionRoute(transactionService)
+
 	// ── 6. Setup Aplikasi Fiber ───────────────────────────────────
 	app := fiber.New(fiber.Config{
 		AppName: cfg.AppName,
@@ -62,6 +71,7 @@ func main() {
 	// ── 7. Routes ─────────────────────────────────────────────────
 	route.SetupRoutes(app, authRoute, jwtHelper)
 	route.SetupBudgetRoutes(app, budgetRoute, expenseRoute, jwtHelper, db)
+	route.SetupTransactionRoutes(app, transactionRoute, categoryRoute, jwtHelper, db)
 
 	// ── 8. Endpoint Tidak Ditemukan (404) ─────────────────────────
 	app.Use(func(c *fiber.Ctx) error {
@@ -89,6 +99,12 @@ func main() {
 	log.Printf("  GET  /api/v1/expense-requests/:id       [JWT]")
 	log.Printf("  POST /api/v1/expense-requests           [JWT]")
 	log.Printf("  POST /api/v1/expense-requests/:id/vote  [JWT]")
+	log.Printf("  GET  /api/v1/categories                 [JWT]")
+	log.Printf("  POST /api/v1/categories                 [JWT, bendahara]")
+	log.Printf("  GET  /api/v1/transactions               [JWT]")
+	log.Printf("  GET  /api/v1/transactions/summary       [JWT]")
+	log.Printf("  GET  /api/v1/transactions/:id           [JWT]")
+	log.Printf("  POST /api/v1/transactions               [JWT, bendahara]")
 	log.Printf("=========================================")
 
 	if err := app.Listen(":" + cfg.AppPort); err != nil {

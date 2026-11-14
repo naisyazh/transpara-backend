@@ -6,8 +6,12 @@ import (
 	"github.com/transpara/backend/middleware"
 )
 
-// SetupRoutes mendaftarkan semua route ke aplikasi Fiber.
+// SetupRoutes mendaftarkan route modul Autentikasi ke aplikasi Fiber.
 // Pola URL: /api/v1/<modul>/<aksi>
+//
+// Route modul lain didaftarkan lewat fungsi terpisah dari main.go:
+//   - SetupBudgetRoutes      (budget_setup.go)
+//   - SetupTransactionRoutes (transaction_setup.go)
 func SetupRoutes(app *fiber.App, authHandler *AuthRoute, jwtHelper *helper.JWTHelper) {
 	api := app.Group("/api/v1")
 
@@ -42,10 +46,4 @@ func SetupRoutes(app *fiber.App, authHandler *AuthRoute, jwtHelper *helper.JWTHe
 			},
 		})
 	})
-
-	// ── Modul Transaksi (Developer 2) ─────────────────────────────
-	// transactions := api.Group("/transactions")
-
-	// ── Modul Anggaran dan Voting (Developer 3) ───────────────────
-	// budgets := api.Group("/budgets")
 }
