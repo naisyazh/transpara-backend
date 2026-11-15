@@ -1,6 +1,6 @@
 # Transpara — Sistem Manajemen Kas dan Transparansi Keuangan Kelompok
 
-Backend REST API menggunakan **Go (Golang)**, **MySQL**, dan **Clean Architecture**.
+Backend REST API menggunakan **Go (Golang)**, **MySQL/MariaDB**, dan **Clean Architecture**.
 
 Transpara (Transparent Group Financial Management System) adalah sistem pengelolaan keuangan kelompok berbasis digital untuk meningkatkan transparansi, akuntabilitas, dan pengawasan atas seluruh aktivitas keuangan kelompok atau organisasi. Bendahara mengelola kas, sedangkan setiap anggota dapat memantau kondisi keuangan secara langsung.
 
@@ -30,7 +30,7 @@ Transpara (Transparent Group Financial Management System) adalah sistem pengelol
 | No | Fitur | Role | Status |
 |----|-------|------|--------|
 | 1 | Registrasi, verifikasi OTP, dan login | Semua | Berjalan |
-| 2 | Manajemen transaksi keuangan | Bendahara | Dalam pengerjaan |
+| 2 | Manajemen transaksi keuangan | Bendahara | Berjalan |
 | 3 | Perencanaan dan pengawasan anggaran | Bendahara | Berjalan |
 | 4 | Pengajuan dan persetujuan pengeluaran (voting) | Bendahara, Anggota | Berjalan |
 | 5 | Manajemen iuran anggota | Bendahara, Anggota | Rencana |
@@ -48,159 +48,70 @@ Transpara (Transparent Group Financial Management System) adalah sistem pengelol
 | budgets | pos anggaran: nama, batas dana, periode | Ada (migrasi 004) |
 | expense_requests | pengajuan dana beserta status | Ada (migrasi 005) |
 | expense_votes | suara setuju atau tolak per pengajuan | Ada (migrasi 006) |
-| categories | id, group_id, name, type | Rencana |
-| transactions | id, group_id, category_id, created_by, type, amount, description, transaction_date | Rencana |
+| categories | id, name, type, created_at, updated_at | Ada (migrasi 008) |
+| transactions | id, category_id, created_by, expense_request_id, type, amount, description, transaction_date, created_at, updated_at | Ada (migrasi 009) |
 
-> Tabel lain (groups, memberships, reimbursements, audit logs) akan ditambahkan oleh modul masing-masing.
->
-> **ERD:** [lampirkan gambar ERD di sini, misalnya `docs/erd.png`]
+Catatan: sistem ini melayani satu kelompok, sehingga tidak ada kolom `group_id`. Batasan `CHECK` pada migrasi 004, 005, dan 009 hanya dijalankan oleh MariaDB 10.2.1+ atau MySQL 8.0.16+.
 
 ---
 
-## Prasyarat
-
-Pastikan sudah terinstal di komputer Anda:
-
-- [Go](https://go.dev/dl/) versi 1.21 atau lebih baru
-- [MySQL](https://dev.mysql.com/downloads/) versi 8.0 atau lebih baru
-- [Git](https://git-scm.com/)
-
----
-
-## Cara Menjalankan Project
-
-### 1. Clone Repository
-
-```bash
-git clone https://github.com/naisyazh/transpara-backend.git
-cd transpara-backend
-```
-
-### 2. Siapkan File `.env`
-
-Salin file contoh dan isi dengan konfigurasi lokal Anda:
-
-```bash
-# Windows (PowerShell)
-Copy-Item .env.example .env
-
-# macOS / Linux
-cp .env.example .env
-```
-
-Buka file `.env` dan isi nilai yang sesuai:
-
-```env
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASS=password_mysql_anda
-DB_NAME=transpara
-JWT_SECRET=isi_dengan_string_acak_yang_panjang
-```
-
-Variabel lain (port aplikasi, SMTP untuk pengiriman OTP, dan sebagainya) mengikuti daftar di `.env.example`.
-
-### 3. Buat Database dan Tabel
-
-Masuk ke MySQL lalu buat database:
-
-```sql
-CREATE DATABASE transpara CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-Jalankan semua file di folder `migrations/` secara berurutan (001, 002, dan seterusnya):
-
-```bash
-# macOS / Linux / Git Bash
-for f in migrations/*.sql; do mysql -u root -p transpara < "$f"; done
-```
-
-```powershell
-# Windows (PowerShell)
-Get-ChildItem migrations\*.sql | Sort-Object Name | ForEach-Object {
-  Get-Content $_.FullName | mysql -u root -p transpara
-}
-```
-
-Alternatif: buka tiap file di MySQL Workbench lalu jalankan berurutan.
-
-### 4. Install Dependency Go
-
-```bash
-go mod tidy
-```
-
-### 5. Jalankan Server
-
-```bash
-go run main.go
-```
-
-Server akan berjalan di `http://localhost:8080`.
-
-### 6. Uji dengan Health Check
-
-```bash
-# Windows (PowerShell)
-curl.exe http://localhost:8080/api/v1/health
-
-# macOS / Linux
-curl http://localhost:8080/api/v1/health
-```
-
-Respons yang diharapkan:
-
-```json
-{
-  "success": true,
-  "message": "Server Transpara berjalan dengan baik"
-}
-```
-
----
-
-## Struktur Folder
+## Struktur Proyek
 
 ```
 transpara-backend/
-├── internal/
-│   ├── domain/            # Entitas, DTO, interface repository, dan error khusus
-│   ├── repository/        # Implementasi akses database MySQL
-│   ├── usecase/           # Business logic
-│   ├── delivery/          # Penerima request HTTP dan pengirim response
-│   │   ├── middleware/    # RequireAuth (JWT) dan RequireRole (pembatasan role)
-│   │   └── router/        # Pendaftaran semua route API
-│   └── infrastructure/
-│       └── email/         # Pengiriman email OTP via SMTP
-├── pkg/
-│   ├── config/            # Membaca konfigurasi dari file .env
-│   ├── database/          # Koneksi ke database MySQL
-│   └── helper/            # Utilitas umum (JWT)
-├── migrations/            # File SQL migrasi (001-007), jalankan berurutan
-├── docs/
-│   └── postman/           # Koleksi Postman untuk pengujian manual
-├── main.go                # Entry point, merakit semua komponen
-├── .env                   # Konfigurasi lokal (JANGAN di-commit)
-├── .env.example           # Contoh konfigurasi (aman di-commit)
-├── .gitignore             # Daftar file yang dikecualikan dari Git
-└── go.mod                 # Daftar dependency Go
+├── main.go
+├── app/
+│   ├── model/          # entitas, kontrak repository, DTO, dan error domain
+│   ├── repository/     # akses database
+│   └── service/        # logika bisnis
+├── config/             # pembacaan .env
+├── database/
+│   ├── mysql.go        # koneksi database
+│   └── migrations/     # 001 sampai 009
+├── helper/
+│   ├── jwt.go
+│   └── email/smtp.go   # pengiriman OTP lewat Gmail SMTP
+├── middleware/
+│   ├── jwt_middleware.go
+│   └── role_middleware.go
+├── route/              # endpoint HTTP dan pemetaan error ke status HTTP
+├── .env.example
+└── README.md
 ```
 
 ---
 
-## Endpoint API
+## Cara Menjalankan
 
-| Method | Endpoint | Deskripsi | Auth |
-|--------|----------|-----------|------|
-| GET | `/api/v1/health` | Cek status server | Tidak |
-| POST | `/api/v1/auth/register` | Registrasi user baru | Tidak |
-| POST | `/api/v1/auth/verify-otp` | Verifikasi OTP yang dikirim ke email | Tidak |
-| POST | `/api/v1/auth/resend-otp` | Kirim ulang OTP | Tidak |
-| POST | `/api/v1/auth/login` | Login dan dapatkan token | Tidak |
-| GET | `/api/v1/auth/me` | Data user yang sedang login | JWT |
+1. Clone repository, lalu masuk ke folder proyek.
+2. Salin `.env.example` menjadi `.env` dan isi nilainya (jangan commit `.env`):
+   ```dotenv
+   APP_PORT=8080
+   APP_NAME=Transpara API
 
-> Endpoint modul anggaran dan voting ada di bagian **Modul Anggaran dan Voting** di bawah. Endpoint modul transaksi (`/api/v1/transactions`) akan ditambahkan oleh developer modul transaksi.
+   DB_HOST=localhost
+   DB_PORT=3306
+   DB_USER=root
+   DB_PASS=your_password_here
+   DB_NAME=transpara
+
+   JWT_SECRET=ganti_dengan_secret_yang_kuat_dan_panjang
+   JWT_ISSUER=transpara-api
+   JWT_EXPIRED_HOUR=24
+
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USERNAME=your_email@gmail.com
+   SMTP_PASSWORD=your_gmail_app_password
+   SMTP_SENDER_NAME=Transpara
+   ```
+   `SMTP_PASSWORD` adalah **App Password** Gmail 16 karakter (butuh 2-Step Verification), bukan password login. Tulis tanpa spasi.
+3. Buat database dan jalankan migrasi `001` sampai `009` **berurutan** dari folder `database/migrations/`. Di MySQL Workbench: File > Open SQL Script, lalu jalankan satu per satu. Di mysql CLI, perintah `SOURCE` bisa dipakai.
+4. Jalankan server:
+   ```bash
+   go run main.go
+   ```
+   Server berjalan di `http://localhost:8080`. Cek dengan `GET /api/v1/health`.
 
 ---
 
@@ -212,21 +123,37 @@ transpara-backend/
 
 ---
 
+## Modul Autentikasi
+
+| Method | Endpoint | Akses | Deskripsi |
+|--------|----------|-------|-----------|
+| POST | `/api/v1/auth/register` | Publik | Daftar akun baru dan kirim OTP ke email |
+| POST | `/api/v1/auth/verify-otp` | Publik | Verifikasi akun dengan kode OTP |
+| POST | `/api/v1/auth/resend-otp` | Publik | Kirim ulang kode OTP |
+| POST | `/api/v1/auth/login` | Publik | Login dan dapatkan token JWT |
+| GET | `/api/v1/auth/me` | Login | Data pengguna dari token |
+
+Setelah login, kirim token di setiap request terlindungi dengan header `Authorization: Bearer <token>`.
+
+---
+
 ## Modul Anggaran dan Voting
 
 Bendahara membuat pos anggaran, anggota mengajukan penggunaan dana, lalu seluruh anggota memberi suara. Pengajuan yang disetujui mayoritas baru boleh dicairkan oleh modul transaksi.
 
 ### Persiapan Database
 
-Migrasi modul ini ada di `migrations/004` sampai `migrations/007` dan ikut dijalankan pada langkah 3 di atas. Kalau ingin menjalankannya terpisah, pakai `SOURCE` di MySQL client (jalan juga di Windows PowerShell):
+Migrasi modul ini ada di `migrations/004` sampai `migrations/007` dan ikut dijalankan pada langkah 3 di atas. Kalau ingin menjalankannya terpisah dengan mysql CLI, pakai `SOURCE`:
 
 ```sql
 USE transpara;
-SOURCE migrations/004_create_budgets_table.sql;
-SOURCE migrations/005_create_expense_requests_table.sql;
-SOURCE migrations/006_create_expense_votes_table.sql;
-SOURCE migrations/007_add_role_to_users.sql;
+SOURCE database/migrations/004_create_budgets_table.sql;
+SOURCE database/migrations/005_create_expense_requests_table.sql;
+SOURCE database/migrations/006_create_expense_votes_table.sql;
+SOURCE database/migrations/007_add_role_to_users.sql;
 ```
+
+`SOURCE` hanya dikenali mysql CLI. Di MySQL Workbench, buka dan jalankan setiap berkas lewat File > Open SQL Script.
 
 Setiap user baru otomatis berrole `anggota`. Role `bendahara` hanya bisa disetel langsung lewat database:
 
@@ -312,7 +239,7 @@ Format response sama dengan modul lain: `success`, `message`, dan `data` (hanya 
 
 ### Penghubung ke Modul Transaksi
 
-Pencairan dana hanya boleh dilakukan dari pengajuan berstatus `approved`. Modul transaksi memanggil `ExpenseUseCase.EnsureApproved(id)` sebelum mencairkan dana. Fungsi ini mengembalikan `domain.ErrRequestNotApproved` jika status masih `pending` atau `rejected` (dipetakan ke `422`), dan `domain.ErrExpenseNotFound` jika ID tidak ada.
+Pencairan dana hanya boleh dilakukan dari pengajuan berstatus `approved`. Modul transaksi memanggil `ExpenseService.EnsureApproved(id)` sebelum mencairkan dana. Fungsi ini mengembalikan `model.ErrRequestNotApproved` jika status masih `pending` atau `rejected` (dipetakan ke `422`), dan `model.ErrExpenseNotFound` jika ID tidak ada.
 
 ### Pengujian Manual
 
@@ -320,12 +247,132 @@ Koleksi Postman tersedia di `docs/postman/transpara-anggaran-voting.postman_coll
 
 ---
 
+## Modul Transaksi Keuangan
+
+Bendahara mencatat pemasukan dan pengeluaran kas, sedangkan seluruh anggota dapat melihat riwayat transaksi dan saldo. Pengeluaran **wajib** terhubung ke pengajuan dana berstatus `approved` dari modul anggaran, sehingga uang hanya keluar setelah disetujui anggota.
+
+### Persiapan Database
+
+Migrasi modul ini ada di `database/migrations/008` dan `009`, dan harus dijalankan **setelah** migrasi 004 sampai 007 karena tabel `transactions` memiliki foreign key ke `expense_requests`.
+
+```sql
+USE transpara;
+SOURCE database/migrations/008_create_categories_table.sql;
+SOURCE database/migrations/009_create_transactions_table.sql;
+```
+
+Migrasi 008 sekaligus mengisi tujuh kategori awal, sehingga bendahara bisa langsung mencatat transaksi:
+
+| Tipe | Kategori awal |
+|------|---------------|
+| income | Iuran Anggota, Donasi, Lain-lain |
+| expense | Konsumsi, Perlengkapan, Kegiatan, Lain-lain |
+
+### Endpoint
+
+Semua endpoint wajib memakai header `Authorization: Bearer <token>`.
+
+| Method | Endpoint | Akses | Deskripsi |
+|--------|----------|-------|-----------|
+| GET | `/api/v1/categories` | Login | Daftar kategori, filter `?type=income\|expense` |
+| POST | `/api/v1/categories` | Bendahara | Buat kategori |
+| GET | `/api/v1/transactions` | Login | Daftar transaksi, terbaru di atas |
+| GET | `/api/v1/transactions/summary` | Login | Ringkasan total pemasukan, pengeluaran, dan saldo kas |
+| GET | `/api/v1/transactions/:id` | Login | Detail satu transaksi |
+| POST | `/api/v1/transactions` | Bendahara | Catat pemasukan atau pengeluaran |
+
+Filter pada `GET /api/v1/transactions` (semuanya opsional dan bisa digabung):
+
+| Parameter | Nilai | Keterangan |
+|-----------|-------|------------|
+| `type` | `income` atau `expense` | Saring berdasarkan tipe |
+| `category_id` | angka | Saring berdasarkan kategori |
+| `from` | `YYYY-MM-DD` | Tanggal awal, ikut dihitung |
+| `to` | `YYYY-MM-DD` | Tanggal akhir, ikut dihitung |
+
+### Contoh Request
+
+Buat kategori (`POST /api/v1/categories`, `type` bernilai `income` atau `expense`):
+
+```json
+{
+  "name": "Sponsor",
+  "type": "income"
+}
+```
+
+Catat pemasukan (`POST /api/v1/transactions`, `amount` wajib):
+
+```json
+{
+  "type": "income",
+  "category_id": 1,
+  "amount": 2000000,
+  "description": "Iuran bulan November",
+  "transaction_date": "2026-11-15"
+}
+```
+
+Catat pengeluaran dari pengajuan yang disetujui. Nominal **tidak** diisi karena diambil dari pengajuan:
+
+```json
+{
+  "type": "expense",
+  "category_id": 4,
+  "expense_request_id": 1,
+  "description": "Konsumsi kegiatan",
+  "transaction_date": "2026-11-15"
+}
+```
+
+Contoh data ringkasan saldo (`GET /api/v1/transactions/summary`):
+
+```json
+{
+  "total_income": 2000000,
+  "total_expense": 500000,
+  "balance": 1500000
+}
+```
+
+Format response sama dengan modul lain: `success`, `message`, dan `data` (hanya saat sukses).
+
+### Aturan Bisnis
+
+- **Pembatasan role**: hanya bendahara yang boleh membuat kategori dan mencatat transaksi. Anggota biasa menerima `403 Forbidden`, tetapi boleh melihat kategori, daftar transaksi, dan saldo.
+- **Kategori**: harus ada, dan tipenya harus sama dengan tipe transaksi. Pasangan nama dan tipe kategori bersifat unik (huruf besar dan kecil tidak dibedakan), tetapi nama yang sama boleh ada di tipe yang berbeda.
+- **Pemasukan** (`income`): `amount` wajib diisi dan harus lebih dari 0. Pemasukan tidak boleh menyertakan `expense_request_id`.
+- **Pengeluaran** (`expense`): `expense_request_id` wajib diisi dan pengajuannya harus berstatus `approved` (dicek lewat `ExpenseService.EnsureApproved`). Nominal diambil dari pengajuan, bukan dari input, sehingga dana yang cair sama persis dengan yang disetujui anggota. Field `amount` pada request diabaikan.
+- **Satu pengajuan hanya bisa dicairkan sekali.** Dijaga `UNIQUE KEY` di database, sehingga aman walau dua request masuk bersamaan.
+- **Tanggal**: `transaction_date` berformat `YYYY-MM-DD`.
+- **Saldo kas** = total pemasukan dikurangi total pengeluaran, dihitung di database.
+- **Batasan saat ini**: pencairan hanya dibatasi status `approved` dan sisa dana pos anggaran. Saldo kas tidak diperiksa, sehingga `balance` bisa negatif jika pemasukan belum dicatat.
+- Database menjaga aturan yang sama lewat `CHECK`: pengeluaran wajib punya pengajuan dan pemasukan tidak boleh punya.
+
+### Kode Response
+
+| Kode | Arti |
+|------|------|
+| 400 | Input tidak valid (format JSON, validasi field, format tanggal, nilai `type`, parameter filter, ID bukan angka) |
+| 401 | Token tidak ada atau tidak valid |
+| 403 | Role tidak punya akses (anggota mencatat transaksi atau membuat kategori) |
+| 404 | Kategori, transaksi, atau pengajuan tidak ditemukan |
+| 409 | Pengajuan sudah pernah dicairkan, atau kategori dengan nama dan tipe yang sama sudah ada |
+| 422 | Aturan bisnis tidak terpenuhi (pengajuan belum disetujui, pengeluaran tanpa pengajuan, pemasukan dengan pengajuan, nominal pemasukan kosong, tipe kategori tidak sesuai) |
+
+### Pengujian Manual
+
+Koleksi Postman tersedia di `docs/postman/transpara-transaksi.postman_collection.json`. Siapkan tepat 4 akun terverifikasi (1 bendahara dan 3 anggota) sebelum menjalankannya, karena pencairan dana membutuhkan pengajuan yang disetujui voting. Urutan skenario: buat kategori, catat pemasukan, buat pos anggaran dan pengajuan, voting sampai `approved`, lalu cairkan dana dan cek saldo.
+
+---
+
 ## Teknologi yang Digunakan
 
 - **Go** — bahasa pemrograman utama
 - **Fiber v2** — HTTP framework REST API
-- **MySQL** — database relasional
+- **MySQL / MariaDB** — database relasional (MariaDB 10.2.1+ atau MySQL 8.0.16+ agar batasan `CHECK` aktif)
 - **godotenv** — membaca file .env
-- **bcrypt** — hash password
+- **bcrypt** — hash password dan OTP
 - **golang-jwt** — JWT token
+- **go-playground/validator** — validasi input request
 - **SMTP (Gmail)** — pengiriman OTP lewat email
