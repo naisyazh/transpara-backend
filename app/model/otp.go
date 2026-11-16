@@ -1,4 +1,4 @@
-package domain
+package model
 
 import "time"
 
@@ -35,6 +35,6 @@ type OTPRepository interface {
 
 // Konstanta batas percobaan dan masa berlaku OTP
 const (
-	OTPMaxAttempt   = 5              // maksimal 5x percobaan salah
+	OTPMaxAttempt    = 5               // maksimal 5x percobaan salah
 	OTPExpiredMinute = 5 * time.Minute // OTP berlaku 5 menit
 )

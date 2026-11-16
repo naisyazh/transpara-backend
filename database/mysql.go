@@ -39,8 +39,8 @@ func NewMySQLConnection(cfg *config.Config) *sql.DB {
 	}
 
 	// Konfigurasi connection pool
-	db.SetMaxOpenConns(25)              // maksimal 25 koneksi terbuka sekaligus
-	db.SetMaxIdleConns(5)               // maksimal 5 koneksi idle (siap pakai)
+	db.SetMaxOpenConns(25)                 // maksimal 25 koneksi terbuka sekaligus
+	db.SetMaxIdleConns(5)                  // maksimal 5 koneksi idle (siap pakai)
 	db.SetConnMaxLifetime(5 * time.Minute) // koneksi diperbarui setiap 5 menit
 
 	log.Println("Koneksi database MySQL berhasil")

@@ -4,14 +4,13 @@ import (
 	"log"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/transpara/backend/app/repository"
+	"github.com/transpara/backend/app/service"
 	"github.com/transpara/backend/config"
 	"github.com/transpara/backend/database"
-	"github.com/transpara/backend/handler"
 	"github.com/transpara/backend/helper"
-	"github.com/transpara/backend/infrastructure/email"
-	"github.com/transpara/backend/repository"
-	"github.com/transpara/backend/router"
-	"github.com/transpara/backend/usecase"
+	"github.com/transpara/backend/helper/email"
+	"github.com/transpara/backend/route"
 )
 
 func main() {
@@ -29,10 +28,28 @@ func main() {
 	emailService := email.NewEmailService(cfg)
 
 	// ── 5. Dependency Injection ───────────────────────────────────
-	userRepo    := repository.NewUserRepository(db)
-	otpRepo     := repository.NewOTPRepository(db)
-	authUseCase := usecase.NewAuthUseCase(userRepo, otpRepo, jwtHelper, emailService)
-	authHandler := handler.NewAuthHandler(authUseCase)
+	// Modul Autentikasi
+	userRepo := repository.NewUserRepository(db)
+	otpRepo := repository.NewOTPRepository(db)
+	authService := service.NewAuthService(userRepo, otpRepo, jwtHelper, emailService)
+	authRoute := route.NewAuthRoute(authService)
+
+	// Modul Anggaran dan Voting
+	budgetRepo := repository.NewBudgetRepository(db)
+	expenseRepo := repository.NewExpenseRequestRepository(db)
+	budgetService := service.NewBudgetService(budgetRepo)
+	expenseService := service.NewExpenseService(budgetRepo, expenseRepo)
+	budgetRoute := route.NewBudgetRoute(budgetService)
+	expenseRoute := route.NewExpenseRoute(expenseService)
+
+	// Modul Transaksi Keuangan
+	// expenseService dipakai ulang supaya transaksi bisa memanggil EnsureApproved.
+	categoryRepo := repository.NewCategoryRepository(db)
+	transactionRepo := repository.NewTransactionRepository(db)
+	categoryService := service.NewCategoryService(categoryRepo)
+	transactionService := service.NewTransactionService(transactionRepo, categoryRepo, expenseService)
+	categoryRoute := route.NewCategoryRoute(categoryService)
+	transactionRoute := route.NewTransactionRoute(transactionService)
 
 	// ── 6. Setup Aplikasi Fiber ───────────────────────────────────
 	app := fiber.New(fiber.Config{
@@ -52,9 +69,11 @@ func main() {
 	})
 
 	// ── 7. Routes ─────────────────────────────────────────────────
-	router.SetupRoutes(app, authHandler, jwtHelper)
+	route.SetupRoutes(app, authRoute, jwtHelper)
+	route.SetupBudgetRoutes(app, budgetRoute, expenseRoute, jwtHelper, db)
+	route.SetupTransactionRoutes(app, transactionRoute, categoryRoute, jwtHelper, db)
 
-	// ── 8. 404 Handler ────────────────────────────────────────────
+	// ── 8. Endpoint Tidak Ditemukan (404) ─────────────────────────
 	app.Use(func(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
 			"success": false,
@@ -72,6 +91,20 @@ func main() {
 	log.Printf("  POST /api/v1/auth/resend-otp")
 	log.Printf("  POST /api/v1/auth/login")
 	log.Printf("  GET  /api/v1/auth/me        [JWT required]")
+	log.Printf("  GET  /api/v1/budgets                    [JWT]")
+	log.Printf("  GET  /api/v1/budgets/:id                [JWT]")
+	log.Printf("  POST /api/v1/budgets                    [JWT, bendahara]")
+	log.Printf("  PUT  /api/v1/budgets/:id                [JWT, bendahara]")
+	log.Printf("  GET  /api/v1/expense-requests           [JWT]")
+	log.Printf("  GET  /api/v1/expense-requests/:id       [JWT]")
+	log.Printf("  POST /api/v1/expense-requests           [JWT]")
+	log.Printf("  POST /api/v1/expense-requests/:id/vote  [JWT]")
+	log.Printf("  GET  /api/v1/categories                 [JWT]")
+	log.Printf("  POST /api/v1/categories                 [JWT, bendahara]")
+	log.Printf("  GET  /api/v1/transactions               [JWT]")
+	log.Printf("  GET  /api/v1/transactions/summary       [JWT]")
+	log.Printf("  GET  /api/v1/transactions/:id           [JWT]")
+	log.Printf("  POST /api/v1/transactions               [JWT, bendahara]")
 	log.Printf("=========================================")
 
 	if err := app.Listen(":" + cfg.AppPort); err != nil {

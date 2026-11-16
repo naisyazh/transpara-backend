@@ -2,8 +2,10 @@ package email
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"html/template"
+	"log"
 	"net/smtp"
 
 	"github.com/transpara/backend/config"
@@ -27,6 +29,13 @@ func NewEmailService(cfg *config.Config) *EmailService {
 //   - toName  : nama penerima untuk sapaan di body email
 //   - otpCode : kode OTP 6 digit yang sudah di-generate
 func (s *EmailService) SendOTP(toEmail, toName, otpCode string) error {
+	// ── 0. Pastikan kredensial SMTP sudah diisi di .env ───────────
+	// Tanpa ini, error yang muncul hanya "gagal mengirim email" tanpa petunjuk.
+	if s.cfg.SMTPUsername == "" || s.cfg.SMTPPassword == "" {
+		log.Printf("[SMTP] SMTP_USERNAME atau SMTP_PASSWORD kosong, cek file .env lalu restart server")
+		return errors.New("konfigurasi SMTP belum lengkap")
+	}
+
 	// ── 1. Susun konten email (HTML) ─────────────────────────────
 	body, err := buildOTPEmailBody(toName, otpCode, s.cfg.AppName)
 	if err != nil {
@@ -59,6 +68,9 @@ func (s *EmailService) SendOTP(toEmail, toName, otpCode string) error {
 		[]byte(message),
 	)
 	if err != nil {
+		// Detail error hanya masuk log server, tidak dikirim ke client.
+		// Pesan password tidak ikut tercetak, hanya alasan penolakan dari server SMTP.
+		log.Printf("[SMTP] gagal mengirim OTP ke %s lewat %s: %v", toEmail, addr, err)
 		return fmt.Errorf("gagal mengirim email: %w", err)
 	}
 
